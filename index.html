@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Magic Chess 3D</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Game UI Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-container"></div>
+    
+    <div id="game-ui">
+        <!-- TOP HUD & CONTROLS -->
+        <div id="top-bar">
+            <button id="btn-buy-xp" class="top-btn btn-arcade">
+                <span class="btn-label">BUY XP</span>
+                <span class="btn-sub">4g</span>
+            </button>
+            <button id="btn-reroll" class="top-btn btn-arcade">
+                <span class="btn-label">REROLL</span>
+                <span class="btn-sub">2g</span>
+            </button>
+        </div>
+
+        <!-- SYNERGY PANEL (LEFT) -->
+        <div id="synergy-panel" class="fantasy-panel">
+            <div class="panel-header">
+                <div class="panel-title">SYNERGIES</div>
+                <div class="panel-divider"></div>
+            </div>
+            <div id="synergy-list"></div>
+        </div>
+        
+        <!-- PLAYER HUD (RIGHT) -->
+        <div id="hud-panel" class="fantasy-panel">
+            <div class="hud-stat-chip gold-chip">
+                <span class="stat-icon">🪙</span>
+                <div class="stat-info">
+                    <span class="stat-label">GOLD</span>
+                    <span id="gold-display" class="stat-value">10</span>
+                </div>
+            </div>
+            
+            <div class="hud-stat-chip hp-chip">
+                <span class="stat-icon">❤️</span>
+                <div class="stat-info">
+                    <span class="stat-label">HEALTH</span>
+                    <span id="health-display" class="stat-value">100</span>
+                </div>
+            </div>
+            
+            <div class="hud-stat-chip lvl-chip">
+                <span class="stat-icon">⭐</span>
+                <div class="stat-info">
+                    <span class="stat-label">LEVEL</span>
+                    <span id="level-display" class="stat-value">3</span>
+                </div>
+            </div>
+
+            <div class="hud-xp-box">
+                <div class="xp-header">
+                    <span>XP PROGRESS</span>
+                    <span id="xp-display">0/6</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- BENCH DOCK (BOTTOM CENTER) -->
+        <div id="bench-area" class="fantasy-panel">
+            <div class="section-title">BENCH SLOTS</div>
+            <div id="bench-slots"></div>
+        </div>
+        
+        <!-- MAIN ACTION BUTTONS -->
+        <div id="action-bar">
+            <button id="btn-start" class="btn-epic-start">
+                <span class="btn-glow"></span>
+                <span class="btn-text">START ROUND</span>
+            </button>
+            
+            <div class="secondary-actions">
+                <button id="btn-open-codex" class="codex-btn" title="Hero Codex">
+                    <span class="btn-icon">📜</span>
+                    <span class="btn-text">CODEX</span>
+                </button>
+                <button id="btn-open-shop" class="shop-open-btn">
+                    <span class="btn-icon">🛒</span>
+                    <span class="btn-text">SHOP</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- HERO SHOP MODAL -->
+        <div id="shop-modal" style="display:none;">
+            <div class="modal-backdrop"></div>
+            <div class="shop-modal-container fantasy-frame">
+                <div class="shop-modal-header">
+                    <div class="modal-title">
+                        <span class="title-icon">⚔️</span>
+                        <span>HERO SHOP</span>
+                    </div>
+                    <button class="shop-modal-close" id="btn-close-shop">✕</button>
+                </div>
+                
+                <div id="shop-heroes"></div>
+                
+                <div class="shop-modal-footer">
+                    <button id="btn-reroll-modal" class="top-btn btn-arcade">
+                        <span>REROLL</span>
+                        <span class="gold-cost">2G</span>
+                    </button>
+                    <div class="modal-gold-badge">
+                        <span>AVAILABLE GOLD:</span>
+                        <strong id="modal-gold">10</strong>
+                        <span class="gold-icon">🪙</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CODEX MODAL -->
+        <div id="codex-modal" style="display:none;">
+            <div class="codex-overlay"></div>
+            <div class="codex-container fantasy-frame">
+                <div class="codex-header">
+                    <div class="modal-title">
+                        <span class="title-icon">📖</span>
+                        <span>ARCHIVE CODEX</span>
+                    </div>
+                    <button class="codex-close" id="btn-close-codex">✕</button>
+                </div>
+                
+                <div class="codex-tabs">
+                    <button class="codex-tab active" data-tab="heroes">Heroes</button>
+                    <button class="codex-tab" data-tab="synergies">Synergies</button>
+                </div>
+                
+                <div class="codex-content">
+                    <div id="codex-heroes" class="codex-page active">
+                        <div class="codex-hero-grid" id="codex-hero-grid"></div>
+                    </div>
+                    <div id="codex-synergies" class="codex-page">
+                        <div id="codex-synergy-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="js/data/heroes.js"></script>
+    <script src="js/data/synergies.js"></script>
+
+    <script src="js/Hero.js"></script>
+    <script src="js/HeroFactory.js"></script>
+    <script src="js/Board.js"></script>
+    <script src="js/Game.js"></script>
+
+    <script src="js/models/HeroModels.js"></script>
+    <script src="js/models/Parts.js"></script>
+    <script src="js/models/heroes/Valor.js"></script>
+    <script src="js/models/heroes/Frost.js"></script>
+    <script src="js/models/heroes/Wind.js"></script>
+    <script src="js/models/heroes/Iron.js"></script>
+    <script src="js/models/heroes/Shade.js"></script>
+    <script src="js/models/heroes/Luna.js"></script>
+    <script src="js/models/heroes/Fang.js"></script>
+
+    <script src="js/systems/EconomySystem.js"></script>
+    <script src="js/systems/PoolSystem.js"></script>
+    <script src="js/systems/CombatSystem.js"></script>
+    <script src="js/systems/SkillRenderer.js"></script>
+    <script src="js/systems/VFXRenderer.js"></script>
+
+    <script src="js/ui/HUD.js"></script>
+    <script src="js/ui/ShopUI.js"></script>
+    <script src="js/ui/BenchUI.js"></script>
+    <script src="js/ui/SynergyUI.js"></script>
+    <script src="js/ui/HealthBar3D.js"></script>
+    <script src="js/ui/SynergyIcons.js"></script>
+    <script src="js/ui/CodexUI.js"></script>
+    <script src="js/ui/HeroIconFactory.js"></script>
+
+
+    <script src="js/anim/HeroAnimator.js"></script>
+    <script src="js/anim/ValorAnimator.js"></script>
+    <script src="js/anim/FrostAnimator.js"></script>
+    <script src="js/anim/WindAnimator.js"></script>
+
+    <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,609 @@
+/* ==========================================================================
+   MAGIC CHESS 3D - MODERN GAMING UI DESIGN SYSTEM
+   ========================================================================== */
+
+:root {
+    --font-heading: 'Cinzel', serif;
+    --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    
+    /* Color Palette */
+    --bg-dark: #070913;
+    --panel-bg: rgba(13, 17, 30, 0.85);
+    --panel-border: rgba(212, 175, 55, 0.35);
+    --panel-border-glow: rgba(212, 175, 55, 0.15);
+    
+    /* Accents */
+    --gold-primary: #f5d061;
+    --gold-secondary: #c49529;
+    --gold-glow: rgba(245, 208, 97, 0.4);
+    
+    --cyan-accent: #38ef7d;
+    --blue-accent: #00d2ff;
+    --purple-accent: #9d50bb;
+    --red-accent: #ff4e50;
+    
+    /* Tier Rarity Colors */
+    --tier-1: #b0bec5;
+    --tier-2: #4caf50;
+    --tier-3: #2196f3;
+    --tier-4: #9c27b0;
+    --tier-5: #ff9800;
+}
+
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body { 
+    background: var(--bg-dark); 
+    overflow: hidden; 
+    font-family: var(--font-body); 
+    height: 100vh; 
+    width: 100vw;
+    color: #e2e8f0;
+}
+
+#game-container { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    z-index: 1;
+}
+
+#game-ui { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    pointer-events: none; 
+    z-index: 10; 
+}
+
+#game-ui > * { 
+    pointer-events: auto; 
+}
+
+/* ==========================================================================
+   FANTASY PANELS & GLASSMORPHISM
+   ========================================================================== */
+
+.fantasy-panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 15px var(--panel-border-glow);
+    border-radius: 12px;
+}
+
+.fantasy-frame {
+    background: linear-gradient(180deg, rgba(20, 26, 46, 0.96) 0%, rgba(10, 13, 24, 0.98) 100%);
+    border: 2px solid var(--gold-secondary);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(196, 149, 41, 0.3);
+    border-radius: 16px;
+    position: relative;
+}
+
+/* ==========================================================================
+   TOP CONTROL BAR
+   ========================================================================== */
+
+#top-bar { 
+    position: fixed; 
+    top: 16px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    display: flex; 
+    gap: 12px; 
+    z-index: 30; 
+}
+
+.btn-arcade {
+    background: linear-gradient(180deg, #2a3454 0%, #141a2e 100%);
+    border: 1px solid #4a5a8a;
+    border-top: 1px solid #7a8aba;
+    color: #ffffff;
+    padding: 8px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: var(--font-heading);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    transition: all 0.2s ease;
+}
+
+.btn-arcade:hover {
+    border-color: var(--gold-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(245, 208, 97, 0.25);
+}
+
+.btn-arcade:active {
+    transform: translateY(1px);
+}
+
+.btn-arcade .btn-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.btn-arcade .btn-sub {
+    font-size: 10px;
+    color: var(--gold-primary);
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   LEFT SYNERGY PANEL
+   ========================================================================== */
+
+#synergy-panel { 
+    position: fixed; 
+    left: 16px; 
+    top: 50%; 
+    transform: translateY(-50%); 
+    padding: 14px; 
+    width: 160px; 
+    max-height: 420px; 
+    overflow-y: auto; 
+    z-index: 25; 
+}
+
+.panel-header {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.panel-title { 
+    font-family: var(--font-heading);
+    color: var(--gold-primary); 
+    font-size: 12px; 
+    font-weight: 900; 
+    letter-spacing: 1.5px;
+}
+
+.panel-divider {
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold-secondary), transparent);
+    margin-top: 4px;
+}
+
+.synergy-row { 
+    display: flex; 
+    align-items: center; 
+    gap: 8px; 
+    padding: 6px 8px; 
+    margin: 4px 0; 
+    background: rgba(255, 255, 255, 0.03); 
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px; 
+    font-size: 11px; 
+    transition: all 0.2s ease;
+}
+
+.synergy-row.active { 
+    background: linear-gradient(90deg, rgba(56, 239, 125, 0.15), rgba(0, 0, 0, 0.2)); 
+    border: 1px solid rgba(56, 239, 125, 0.5); 
+    color: #ffffff;
+    box-shadow: 0 0 10px rgba(56, 239, 125, 0.15);
+}
+
+.synergy-row canvas {
+    width: 22px;
+    height: 22px;
+}
+
+/* ==========================================================================
+   RIGHT STAT HUD PANEL
+   ========================================================================== */
+
+#hud-panel { 
+    position: fixed; 
+    right: 16px; 
+    top: 50%; 
+    transform: translateY(-50%); 
+    padding: 12px; 
+    z-index: 25; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 10px; 
+    width: 140px;
+}
+
+.hud-stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+
+.hud-stat-chip .stat-icon {
+    font-size: 16px;
+}
+
+.hud-stat-chip .stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.hud-stat-chip .stat-label {
+    font-size: 9px;
+    color: #94a3b8;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.hud-stat-chip .stat-value {
+    font-size: 14px;
+    font-weight: 700;
+    font-family: var(--font-heading);
+}
+
+.gold-chip .stat-value { color: var(--gold-primary); }
+.hp-chip .stat-value { color: var(--red-accent); }
+.lvl-chip .stat-value { color: var(--blue-accent); }
+
+.hud-xp-box {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 10px;
+}
+
+.xp-header {
+    display: flex;
+    justify-content: space-between;
+    color: #a0aec0;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   BENCH SLOTS
+   ========================================================================== */
+
+#bench-area { 
+    position: fixed; 
+    bottom: 80px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    padding: 10px 18px; 
+    z-index: 20; 
+}
+
+.section-title { 
+    color: var(--gold-primary); 
+    font-family: var(--font-heading);
+    font-size: 10px; 
+    font-weight: 700; 
+    letter-spacing: 1.5px;
+    text-align: center; 
+    margin-bottom: 6px; 
+}
+
+#bench-slots { 
+    display: flex; 
+    gap: 10px; 
+}
+
+.bench-slot { 
+    width: 62px; 
+    height: 72px; 
+    background: linear-gradient(180deg, rgba(20, 25, 45, 0.6) 0%, rgba(10, 12, 24, 0.8) 100%); 
+    border: 1px stroke rgba(255, 255, 255, 0.1);
+    outline: 1px dashed rgba(212, 175, 55, 0.3);
+    outline-offset: -4px;
+    border-radius: 8px; 
+    cursor: pointer; 
+    position: relative; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    transition: all 0.2s ease;
+}
+
+.bench-slot:hover {
+    outline-color: var(--gold-primary);
+    background: linear-gradient(180deg, rgba(35, 45, 80, 0.8) 0%, rgba(15, 20, 40, 0.9) 100%);
+    box-shadow: 0 0 12px rgba(245, 208, 97, 0.2);
+}
+
+/* ==========================================================================
+   ACTION BAR & BUTTONS
+   ========================================================================== */
+
+#action-bar {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 40;
+}
+
+/* Epic Start Round Button */
+.btn-epic-start {
+    position: relative;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    color: #052010;
+    border: none;
+    padding: 14px 42px;
+    border-radius: 30px;
+    font-family: var(--font-heading);
+    font-weight: 900;
+    font-size: 15px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 0 25px rgba(56, 239, 125, 0.4), 0 4px 15px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-epic-start:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 35px rgba(56, 239, 125, 0.7);
+}
+
+.btn-epic-start:active {
+    transform: scale(0.98);
+}
+
+/* Secondary Action Buttons */
+.secondary-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.shop-open-btn, .codex-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(180deg, #c49529 0%, #805b0d 100%);
+    color: #ffffff;
+    border: 1px solid var(--gold-primary);
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+}
+
+.codex-btn {
+    background: linear-gradient(180deg, #3a2e54 0%, #1d1530 100%);
+    border-color: var(--purple-accent);
+}
+
+.shop-open-btn:hover, .codex-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(245, 208, 97, 0.3);
+}
+
+/* ==========================================================================
+   MODAL WINDOWS (SHOP & CODEX)
+   ========================================================================== */
+
+#shop-modal, #codex-modal { 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    z-index: 200; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+}
+
+.modal-backdrop, .codex-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(4, 6, 12, 0.82);
+    backdrop-filter: blur(8px);
+}
+
+.shop-modal-container, .codex-container { 
+    position: relative;
+    z-index: 201;
+    padding: 24px; 
+    width: 90vw; 
+    max-width: 780px; 
+}
+
+.shop-modal-header, .codex-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 18px; 
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.modal-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-heading);
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--gold-primary);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.shop-modal-close, .codex-close { 
+    background: rgba(255, 255, 255, 0.05); 
+    color: var(--gold-primary); 
+    border: 1px solid var(--gold-secondary); 
+    width: 32px; 
+    height: 32px; 
+    border-radius: 50%; 
+    cursor: pointer; 
+    font-size: 16px; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.shop-modal-close:hover, .codex-close:hover {
+    background: var(--red-accent);
+    border-color: var(--red-accent);
+    color: #fff;
+}
+
+#shop-heroes { 
+    display: flex; 
+    gap: 12px; 
+    justify-content: center; 
+    flex-wrap: wrap; 
+    min-height: 180px; 
+    margin: 15px 0;
+}
+
+.shop-modal-footer { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-top: 16px; 
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.modal-gold-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #cbd5e1;
+}
+
+.modal-gold-badge strong {
+    color: var(--gold-primary);
+    font-family: var(--font-heading);
+    font-size: 16px;
+}
+
+/* ==========================================================================
+   CODEX MODAL SPECIFICS
+   ========================================================================== */
+
+.codex-tabs { 
+    display: flex; 
+    gap: 10px; 
+    margin-bottom: 18px; 
+}
+
+.codex-tab { 
+    background: rgba(255, 255, 255, 0.04); 
+    color: #94a3b8; 
+    border: 1px solid rgba(255, 255, 255, 0.1); 
+    padding: 8px 20px; 
+    border-radius: 20px; 
+    cursor: pointer; 
+    font-family: var(--font-heading); 
+    font-size: 12px; 
+    font-weight: 700;
+    transition: all 0.2s; 
+}
+
+.codex-tab.active { 
+    background: linear-gradient(180deg, var(--gold-primary) 0%, var(--gold-secondary) 100%); 
+    color: #0b0d19; 
+    border-color: var(--gold-primary); 
+    box-shadow: 0 0 12px var(--gold-glow);
+}
+
+.codex-page { display: none; }
+.codex-page.active { display: block; }
+
+.codex-hero-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+    gap: 12px; 
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.codex-hero-card { 
+    background: rgba(255, 255, 255, 0.03); 
+    border: 1px solid rgba(212, 175, 55, 0.2); 
+    border-radius: 10px; 
+    padding: 12px; 
+    text-align: center; 
+    transition: all 0.2s ease; 
+}
+
+.codex-hero-card:hover { 
+    border-color: var(--gold-primary); 
+    background: rgba(212, 175, 55, 0.08); 
+    transform: translateY(-3px); 
+}
+
+/* Scrollbar Customizer */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--gold-secondary);
+    border-radius: 3px;
+}
+
+#codex-synergy-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+/* Styled Gold Gaming Scrollbar for the Synergy List */
+#codex-synergy-list::-webkit-scrollbar {
+    width: 6px;
+}
+#codex-synergy-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 3px;
+}
+#codex-synergy-list::-webkit-scrollbar-thumb {
+    background: #8B6914;
+    border-radius: 3px;
+}
+#codex-synergy-list::-webkit-scrollbar-thumb:hover {
+    background: #FFD700;
+}
+
+.hero-portrait-svg {
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
+    transition: transform 0.2s ease, filter 0.2s ease;
+    cursor: pointer;
+}
+
+.hero-portrait-svg:hover {
+    transform: scale(1.08);
+    filter: drop-shadow(0 6px 12px rgba(245, 208, 97, 0.5));
+}
+
+.skill-icon-svg {
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+}
