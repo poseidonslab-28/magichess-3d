@@ -57,7 +57,7 @@ class CombatSystem {
 
             // 3. Busy State Lock (Attacking or Casting Skill)
             if (h.state === 'attacking' || h.state === 'casting') {
-                continue; 
+                continue;
             }
 
             // 4. Handle Tile Interpolation (Moving between tiles)
@@ -98,7 +98,7 @@ class CombatSystem {
                 // Check if any enemy is within skill range (range + 2 for most skills)
                 const skillRange = h.range + 2;
                 const enemiesInRange = this.getEnemiesInRange(h, skillRange);
-                
+
                 if (enemiesInRange.length > 0) {
                     h.mana = 0;
                     this.castSkill(h, target);
@@ -115,7 +115,7 @@ class CombatSystem {
                     h.atkTimer = 0;
                     this.performAttack(h, target);
                 }
-            } 
+            }
             // 8. Out of Range -> Step to Next Tile
             else {
                 this.stepToward(h, target);
@@ -139,8 +139,12 @@ class CombatSystem {
         this.playAnim(attacker, 'attack');
 
         const isRanged = attacker.range > 1;
-        const impactDelay = isRanged ? 250 : 200;
-        const totalAnimDuration = 600;
+        const skill = attacker.data.skill || {};
+        const vfxConfig = skill.vfx?.attack || {};
+        const impactDelay = isRanged ? 250 : 150;
+        const totalAnimDuration = 550;
+
+        console.log(`${attacker.data.name} attacking! VFX:`, !!this.vfx, 'Config:', vfxConfig); // DEBUG
 
         setTimeout(() => {
             if (!attacker.alive || !defender.alive) return;
@@ -148,24 +152,20 @@ class CombatSystem {
             const dmg = defender.takeDmg(attacker.atk);
             attacker.mana = Math.min(attacker.mana + 15, attacker.maxMana);
 
-            if (this.vfx) {
-                const from = this.getPos(attacker).clone();
-                from.y += 1.2;
-                const to = this.getPos(defender).clone();
-                to.y += 0.8;
+            console.log(`Damage: ${dmg}, Creating VFX at defender pos`); // DEBUG
 
-                if (isRanged) {
-                    this.vfx.createProjectile(from, to, 'magicBolt', 0xff44ff);
-                    setTimeout(() => {
-                        if (defender.alive && this.vfx) {
-                            this.vfx.createFloatingText(to, dmg, 'damage');
-                        }
-                    }, 150);
-                } else {
-                    this.vfx.createImpact(to, 'slash');
-                    this.vfx.createFloatingText(to, dmg, 'damage');
-                }
-            }
+        if (this.vfx) {
+            const to = this.getPos(defender).clone();
+            to.y += 1.5; // Higher above model
+            
+            // Create BIG slash
+            this.vfx.createImpact(to, 'slash', { color: 0xffffff, scale: 3.0 });
+            
+            // Damage number way above
+            const textPos = to.clone();
+            textPos.y += 1.5;
+            this.vfx.createFloatingText(textPos, dmg, 'damage');
+        }
         }, impactDelay);
 
         setTimeout(() => {
@@ -176,17 +176,14 @@ class CombatSystem {
         }, totalAnimDuration);
     }
 
-    // ================================================================
-    // CAST SKILL - Handles AOE, Melee, and Ranged projectile skills
-    // ================================================================
     castSkill(hero, target) {
         hero.state = 'casting';
         this.playAnim(hero, 'skill');
 
         const skill = hero.data.skill;
-        const isMelee = hero.range <= 1;
-        const isAoe = skill?.aoeRadius && skill.aoeRadius > 0;
-        const impactDelay = isMelee ? 400 : 250;
+        if (!skill) return;
+
+        const impactDelay = 300;
         const totalAnimDuration = 800;
 
         setTimeout(() => {
@@ -194,152 +191,199 @@ class CombatSystem {
 
             const heroPos = this.getPos(hero).clone();
             const enemies = (this.teamA.includes(hero) ? this.teamB : this.teamA).filter(e => e.alive);
+            const allies = (this.teamA.includes(hero) ? this.teamA : this.teamB).filter(a => a.alive);
 
-            // ==========================================
-            // CASE 1: AOE SKILL (Frost's Glacial Nova, etc.)
-            // ==========================================
-            if (isAoe) {
-                const radius = skill.aoeRadius || 2.5;
-
-                // Camera shake
-                if (this.game?.cameraShake) {
-                    this.game.cameraShake(0.8, 450);
-                }
-
-                // VFX explosion at epicenter
-                if (this.vfx) {
-                    const effectType = skill.effect === 'freeze' ? 'frostNova' : 'fireExplosion';
-                    const effectColor = skill.effect === 'freeze' ? 0x88ddff : 0xff4400;
-                    this.vfx.createImpact(heroPos, effectType, { scale: radius * 1.5, color: effectColor, duration: 600 });
-                    this.vfx.createImpact(heroPos, 'flash', { scale: 1.5, duration: 150 });
-
-                    // Ice-based AOE: extra spikes and shards
-                    if (skill.effect === 'freeze') {
-                        // Ice spikes cascading outward
-                        for (let i = 0; i < 12; i++) {
-                            const angle = (i / 12) * Math.PI * 2;
-                            const dist = 0.8 + Math.random() * radius * 0.9;
-                            const spikePos = heroPos.clone();
-                            spikePos.x += Math.cos(angle) * dist;
-                            spikePos.z += Math.sin(angle) * dist;
-                            spikePos.y += 0.1;
-
-                            setTimeout(() => {
-                                if (this.vfx && hero.alive) {
-                                    this.vfx.createImpact(spikePos, 'iceSpike', {
-                                        scale: 0.4 + Math.random() * 0.6,
-                                        color: 0xaaddff,
-                                        duration: 400
-                                    });
-                                }
-                            }, 50 + i * 30);
-                        }
-
-                        // Falling ice shards (post-blast)
-                        for (let i = 0; i < 20; i++) {
-                            const angle = Math.random() * Math.PI * 2;
-                            const dist = 0.5 + Math.random() * radius * 1.2;
-                            const shardPos = heroPos.clone();
-                            shardPos.x += Math.cos(angle) * dist;
-                            shardPos.z += Math.sin(angle) * dist;
-                            shardPos.y += 0.5 + Math.random() * 1.5;
-
-                            setTimeout(() => {
-                                if (this.vfx && hero.alive) {
-                                    this.vfx.createImpact(shardPos, 'iceShard', {
-                                        scale: 0.2 + Math.random() * 0.3,
-                                        color: 0xccffff,
-                                        duration: 300
-                                    });
-                                }
-                            }, 300 + i * 40);
-                        }
-                    }
-                }
-
-                // Damage application (staggered)
-                const targets = enemies.filter(e => this.getGridDistance(hero, e) <= radius);
-                targets.forEach((e, index) => {
-                    setTimeout(() => {
-                        if (!e.alive) return;
-                        const dmg = e.takeDmg(hero.atk * (skill.multiplier || 2.0));
-
-                        if (skill.effect === 'freeze' || skill.effect === 'stun') {
-                            e.stunTimer = skill.stunDuration || 1500;
-                            if (this.vfx) {
-                                const ePos = this.getPos(e).clone();
-                                ePos.y += 0.5;
-                                this.vfx.createImpact(ePos, 'freezePrison', { scale: 0.8, color: 0x88ddff, duration: 1200 });
-                            }
-                        }
-
-                        if (this.vfx) {
-                            const ePos = this.getPos(e).clone();
-                            ePos.y += 0.8;
-                            this.vfx.createImpact(ePos, 'iceBurst', { scale: 0.8, color: 0xffffff, duration: 200 });
-                            this.vfx.createFloatingText(ePos, dmg, 'crit');
-                        }
-                    }, 150 + index * 50);
-                });
-            }
-
-            // ==========================================
-            // CASE 2: MELEE SKILL (Single target)
-            // ==========================================
-            else if (isMelee) {
-                if (target && target.alive) {
-                    const dmg = target.takeDmg(hero.atk * (skill.multiplier || 1.8));
-                    
-                    if (skill.effect === 'stun' || skill.effect === 'freeze') {
-                        target.stunTimer = 1500;
-                    }
-
-                    if (this.vfx) {
-                        const tPos = this.getPos(target).clone();
-                        tPos.y += 0.8;
-                        this.vfx.createImpact(tPos, 'slash');
-                        this.vfx.createFloatingText(tPos, dmg, 'damage');
-                    }
-                }
-            }
-
-            // ==========================================
-            // CASE 3: RANGED PROJECTILE SKILL (default)
-            // ==========================================
-            else {
-                enemies.forEach(e => {
-                    const dmg = e.takeDmg(hero.atk * (skill.multiplier || 1.5));
-                    if (skill.effect === 'freeze') e.stunTimer = 1500;
-
-                    if (this.vfx) {
-                        const from = heroPos.clone();
-                        from.y += 1.2;
-                        const to = this.getPos(e).clone();
-                        to.y += 0.8;
-
-                        let proj = 'magicBolt';
-                        if (skill.effect === 'burn') proj = 'fireball';
-                        if (skill.effect === 'freeze') proj = 'iceShard';
-
-                        this.vfx.createProjectile(from, to, proj, 0xffaa00);
-
-                        setTimeout(() => {
-                            if (e.alive && this.vfx) {
-                                this.vfx.createFloatingText(to, dmg, 'crit');
-                            }
-                        }, 200);
-                    }
-                });
+            // Route to correct executor
+            switch (skill.type) {
+                case 'aoe':
+                    this.executeAOESkill(hero, enemies, heroPos, skill);
+                    break;
+                case 'projectile':
+                    this.executeProjectileSkill(hero, enemies, heroPos, skill);
+                    break;
+                case 'heal':
+                    this.executeHealSkill(hero, allies, heroPos, skill);
+                    break;
+                case 'self':
+                    this.executeSelfBuff(hero, skill);
+                    break;
+                case 'execute':
+                    this.executeExecuteSkill(hero, enemies, heroPos, skill);
+                    break;
+                case 'chain':
+                    this.executeChainSkill(hero, enemies, heroPos, skill);
+                    break;
+                case 'single':
+                default:
+                    this.executeSingleTargetSkill(hero, target, heroPos, skill);
+                    break;
             }
         }, impactDelay);
 
-        // Unlock unit state after skill animation completes
         setTimeout(() => {
             if (hero.state === 'casting') {
                 hero.state = 'idle';
                 this.playAnim(hero, 'idle');
             }
         }, totalAnimDuration);
+    }
+
+    executeSelfBuff(hero, skill) {
+        if (skill.effect === 'shield') {
+            hero.hp = Math.min(hero.hp + (skill.value || 300), hero.maxHp * 1.5);
+        }
+        if (skill.effect === 'reflect') {
+            hero._reflectDmg = skill.value || 30;
+        }
+
+        if (this.vfx && skill.vfx) {
+            const hPos = this.getPos(hero).clone();
+            hPos.y += 0.8;
+            this.vfx.createImpact(hPos, 'heal', skill.vfx.color || 0xffaa44);
+            this.vfx.createFloatingText(hPos, skill.value || 300, 'heal');
+        }
+    }
+
+    executeExecuteSkill(hero, enemies, heroPos, skill) {
+        // Find lowest HP enemy
+        const target = enemies.sort((a, b) => a.hp - b.hp)[0];
+        if (!target) return;
+
+        const multiplier = target.hp / target.maxHp < 0.3 ? (skill.multiplier || 4) : (skill.multiplier || 2.5);
+        const dmg = target.takeDmg(hero.atk * multiplier);
+
+        if (this.vfx && skill.vfx) {
+            const tPos = this.getPos(target).clone();
+            tPos.y += 0.8;
+            this.vfx.createImpact(tPos, 'slash', { color: 0xff0000 });
+            this.vfx.createFloatingText(tPos, dmg, 'crit');
+        }
+    }
+
+    executeChainSkill(hero, enemies, heroPos, skill) {
+        const chainCount = skill.chains || 3;
+        const targets = enemies.slice(0, chainCount);
+
+        targets.forEach((e, i) => {
+            if (!e.alive) return;
+            const dmg = e.takeDmg(hero.atk * (skill.multiplier || 2) * (1 - i * 0.15));
+
+            if (this.vfx && skill.vfx) {
+                const to = this.getPos(e).clone();
+                to.y += 0.8;
+                setTimeout(() => {
+                    if (e.alive) {
+                        this.vfx.createImpact(to, 'magicBolt', { color: 0xffdd44 });
+                        this.vfx.createFloatingText(to, dmg, 'damage');
+                    }
+                }, i * 100);
+            }
+        });
+    }
+
+    // ============ SKILL EXECUTORS ============
+
+    // In executeSingleTargetSkill, add fallback:
+    executeSingleTargetSkill(hero, target, heroPos, skill) {
+        if (!target || !target.alive) return;
+
+        const dmg = target.takeDmg(hero.atk * (skill.multiplier || 1.8));
+        this.applyEffect(target, skill.effect, skill.stunDuration);
+
+        if (this.vfx) {
+            const tPos = this.getPos(target).clone();
+            tPos.y += 0.8;
+            // Use skill.vfx if available, otherwise defaults
+            const impact = skill.vfx?.impact || 'slash';
+            const color = skill.vfx?.color || 0xffdd44;
+            this.vfx.createImpact(tPos, impact, { color });
+            this.vfx.createFloatingText(tPos, dmg, 'damage');
+        }
+    }
+
+    executeAOESkill(hero, enemies, heroPos, skill) {
+        const radius = skill.aoeRadius || 2.5;
+
+        // Camera shake
+        if (this.game?.cameraShake) this.game.cameraShake(0.6, 400);
+
+        // Center VFX
+        if (this.vfx && skill.vfx) {
+            this.vfx.createImpact(heroPos, skill.vfx.impact || 'fireExplosion', skill.vfx.color);
+        }
+
+        // Hit enemies in range
+        const targets = enemies.filter(e => this.getGridDistance(hero, e) <= radius);
+        targets.forEach((e, i) => {
+            setTimeout(() => {
+                if (!e.alive) return;
+                const dmg = e.takeDmg(hero.atk * (skill.multiplier || 2.0));
+                this.applyEffect(e, skill.effect, skill.stunDuration);
+
+                if (this.vfx) {
+                    const ePos = this.getPos(e).clone();
+                    ePos.y += 0.8;
+                    this.vfx.createFloatingText(ePos, dmg, 'crit');
+                }
+            }, i * 60);
+        });
+    }
+
+    executeProjectileSkill(hero, enemies, heroPos, skill) {
+        const targets = skill.targetsAll ? enemies : enemies.slice(0, 1);
+
+        targets.forEach((e, i) => {
+            if (!e.alive) return;
+            const dmg = e.takeDmg(hero.atk * (skill.multiplier || 1.5));
+            this.applyEffect(e, skill.effect, skill.stunDuration);
+
+            if (this.vfx && skill.vfx) {
+                const from = heroPos.clone();
+                from.y += 1.2;
+                const to = this.getPos(e).clone();
+                to.y += 0.8;
+
+                this.vfx.createProjectile(from, to, skill.vfx.projectile || 'magicBolt', skill.vfx.color);
+
+                setTimeout(() => {
+                    if (e.alive && this.vfx) {
+                        this.vfx.createFloatingText(to, dmg, 'damage');
+                    }
+                }, 200);
+            }
+        });
+    }
+
+    executeHealSkill(hero, allies, heroPos, skill) {
+        allies.forEach((a, i) => {
+            if (!a.alive) return;
+            const healAmt = skill.healAmount || 200;
+            a.heal(healAmt);
+
+            if (this.vfx && skill.vfx) {
+                const aPos = this.getPos(a).clone();
+                aPos.y += 0.8;
+                this.vfx.createImpact(aPos, skill.vfx.impact || 'heal', skill.vfx.color);
+                this.vfx.createFloatingText(aPos, healAmt, 'heal');
+            }
+        });
+    }
+
+    // ============ EFFECT APPLIER ============
+
+    applyEffect(target, effect, duration = 1500) {
+        switch (effect) {
+            case 'freeze':
+            case 'stun':
+                target.stunTimer = duration;
+                break;
+            case 'burn':
+                // Could add burn damage over time
+                break;
+            case 'bleed':
+                // Could add bleed damage over time
+                break;
+        }
     }
 
     // --- GRID MOVEMENT & TILE PATHING ---

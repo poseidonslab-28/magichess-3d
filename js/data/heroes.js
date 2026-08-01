@@ -1,9 +1,30 @@
 // js/data/heroes.js
 const HERO_DATA = {
     // ==================== TIER 1 (Cost 1) ====================
-    k1: { id:'k1', name:'Valor', cost:1, traits:['knight','human'], emoji:'⚔️', color:'#4488cc',
-        stats:{hp:60000, atk:50, def:35, spd:0.6, range:1}, mana:{max:70, start:70},
-        skill:{name:'Holy Strike', desc:'200% damage to target', type:'single', multiplier:2.0, effect:'damage'} },
+    k1: { 
+        id:'k1', name:'Valor', cost:1, traits:['knight','human'], color:'#4488cc',
+        stats:{hp:6000, atk:50, def:35, spd:0.6, range:1}, mana:{max:70, start:60},
+        skill: {
+            name: 'Holy Strike',
+            type: 'single',
+            multiplier: 2.0,
+            effect: 'damage',
+            vfx: {
+                attack: {
+                    impact: 'slash',
+                    color: 0xffdd44,
+                    textType: 'damage'
+                },
+                skill: {
+                    impact: 'slash',
+                    color: 0xffdd44,
+                    textType: 'damage',
+                    extraImpacts: 2,
+                    screenShake: 0.3
+                }
+            }
+        }
+    },
     m1: { id:'m1', name:'Frost', cost:1, traits:['mage','elf'], emoji:'🧙', color:'#8844cc',
         stats:{hp:4500, atk:40, def:15, spd:0.7, range:3},
         mana:{max:50, start:30},

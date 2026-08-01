@@ -212,17 +212,17 @@ class VFXRenderer {
         const { scale = 1, color = 0xffdd44, duration = 500 } = options;
 
         switch (type) {
-            case 'arrow':       this.arrowImpact(position); break;
-            case 'fireball':    this.fireExplosion(position); break;
-            case 'iceShard':    this.iceShatter(position); break;
-            case 'magicBolt':   this.magicImpact(position, color); break;
-            case 'slash':       this.slashEffect(position); break;
-            case 'heal':        this.healEffect(position); break;
-            case 'frostNova':   this.frostNova(position, scale, color, duration); break;
-            case 'iceSpike':    this.iceSpike(position, scale, color, duration); break;
-            case 'iceBurst':    this.iceBurst(position, scale, color, duration); break;
+            case 'arrow': this.arrowImpact(position); break;
+            case 'fireball': this.fireExplosion(position); break;
+            case 'iceShard': this.iceShatter(position); break;
+            case 'magicBolt': this.magicImpact(position, color); break;
+            case 'slash': this.slashEffect(position); break;
+            case 'heal': this.healEffect(position); break;
+            case 'frostNova': this.frostNova(position, scale, color, duration); break;
+            case 'iceSpike': this.iceSpike(position, scale, color, duration); break;
+            case 'iceBurst': this.iceBurst(position, scale, color, duration); break;
             case 'freezePrison': this.freezePrison(position, scale, color, duration); break;
-            case 'flash':       this.flash(position, scale, duration); break;
+            case 'flash': this.flash(position, scale, duration); break;
             default: break;
         }
     }
@@ -582,26 +582,35 @@ class VFXRenderer {
             color: 0xffffff,
             side: THREE.DoubleSide,
             transparent: true,
-            blending: THREE.AdditiveBlending
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
         });
         const slash = new THREE.Mesh(this.unitPlane, mat);
         slash.position.copy(pos);
-        slash.scale.set(0.12, 1.2, 1);
-        slash.rotation.z = (Math.random() - 0.5) * 1.5;
+        slash.position.y += 0.5;
+        slash.scale.set(1.5, 5.0, 1); // MASSIVE - 1.5 wide, 5 tall
+        slash.rotation.z = (Math.random() - 0.5) * 0.8;
+        slash.renderOrder = 9999;
+        slash.frustumCulled = false;
         this.scene.add(slash);
+
+        const lifeSpan = 0.35;
         this.activeEffects.push({
             group: slash,
-            life: 0.2,
+            life: lifeSpan,
             time: 0,
             update: (dt) => {
                 slash.userData.time = (slash.userData.time || 0) + dt;
-                const t = slash.userData.time / 0.2;
-                slash.scale.x = 0.12 + t * 0.6;
+                const t = slash.userData.time / lifeSpan;
+                slash.scale.x = 1.5 + t * 3.0; // Expand outward
+                slash.scale.y = 5.0 + t * 2.0;
                 mat.opacity = 1 - t;
             },
             cleanup: () => {
                 this.scene.remove(slash);
-                this.disposeObject(slash);
+                mat.dispose();
             }
         });
     }
@@ -913,8 +922,8 @@ class VFXRenderer {
             time: 0,
             children: [prison, glow],
             update: (dt) => {
-                this.activeEffects[this.activeEffects.length-1].time += dt;
-                const t = this.activeEffects[this.activeEffects.length-1].time / lifeSec;
+                this.activeEffects[this.activeEffects.length - 1].time += dt;
+                const t = this.activeEffects[this.activeEffects.length - 1].time / lifeSec;
                 if (t > 0.8) {
                     const fade = 1 - (t - 0.8) / 0.2;
                     prisonMat.opacity = 0.7 * fade;

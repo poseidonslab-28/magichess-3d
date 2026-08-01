@@ -4,6 +4,7 @@ class Board {
         this.game = game;
         this.heroMeshes = [];
         this.enemyMeshes = [];
+        this.tileMeshes = []; // ADD THIS
         this.tileSize = 1.3;
         this.init();
     }
@@ -53,6 +54,55 @@ class Board {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+
+        this.renderer.domElement.addEventListener('click', (event) => {
+            if (!this.game || this.game.phase !== 'plan') return;
+            
+            const rect = this.renderer.domElement.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, this.camera);
+            const hits = raycaster.intersectObjects(this.boardGroup.children);
+            
+            if (hits.length > 0) {
+                const pos = hits[0].object.position;
+                const col = Math.round(pos.x / 1.3 + 3.5);
+                const row = Math.round(pos.z / 1.3 + 3.5);
+                if (row >= 4 && row <= 7 && col >= 0 && col <= 7) {
+                    this.game.clickBoard(row, col);
+                }
+            }
+        });
+
+        // Right click
+        this.renderer.domElement.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            if (!this.game || this.game.phase !== 'plan') return;
+            
+            const rect = this.renderer.domElement.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, this.camera);
+            const hits = raycaster.intersectObjects(this.boardGroup.children);
+            
+            if (hits.length > 0) {
+                const pos = hits[0].object.position;
+                const col = Math.round(pos.x / 1.3 + 3.5);
+                const row = Math.round(pos.z / 1.3 + 3.5);
+                if (row >= 4 && row <= 7 && col >= 0 && col <= 7 && this.game.board[row][col].hero) {
+                    this.game.rightClickBoard(row, col); // Same as left click - returns to bench
+                }
+            }
         });
     }
 
@@ -112,16 +162,13 @@ class Board {
         for (let r = 0; r < 8; r++) {
             for (let c = 0; c < 8; c++) {
                 const isDark = (r + c) % 2 === 0;
-                
                 const tileGeo = new THREE.BoxGeometry(ts * 0.94, 0.08, ts * 0.94);
-                
-                // Realistic color noise variation for stone individual cuts
                 const noise = (Math.random() - 0.5) * 0.03;
-                let baseHex = isDark ? 0x22262c : 0x383e47; // Dark slate vs weathered gray stone
+                let baseHex = isDark ? 0x22262c : 0x383e47;
                 
                 const tileMat = new THREE.MeshStandardMaterial({ 
                     color: new THREE.Color(baseHex).addScalar(noise),
-                    roughness: 0.65 + Math.random() * 0.2, // Rough stone feel
+                    roughness: 0.65 + Math.random() * 0.2,
                     metalness: 0.05
                 });
                 
@@ -131,7 +178,12 @@ class Board {
                 tile.position.y = 0.04;
                 tile.receiveShadow = true;
                 tile.castShadow = true;
+                
+                // ADD USERDATA FOR RAYCASTING
+                tile.userData = { row: r, col: c, isTile: true };
+
                 this.boardGroup.add(tile);
+                this.tileMeshes.push(tile); // ADD TO TILEMESHES ARRAY
             }
         }
         
@@ -290,7 +342,7 @@ class Board {
     removeHero(row, col) {
         for (let i = this.heroMeshes.length - 1; i >= 0; i--) {
             const m = this.heroMeshes[i];
-            if (m.userData.row === row && m.userData.col === col) {
+            if (m.userData.hero && m.userData.hero.row === row && m.userData.hero.col === col) {
                 this.scene.remove(m);
                 this.heroMeshes.splice(i, 1);
                 return;
@@ -398,5 +450,17 @@ class Board {
         });
         
         this.renderer.render(this.scene, this.camera);
+    }
+
+    // Find and remove mesh by hero reference
+    removeHeroMeshByHero(hero) {
+        for (let i = this.heroMeshes.length - 1; i >= 0; i--) {
+            const mesh = this.heroMeshes[i];
+            if (mesh.userData.hero === hero) {
+                this.scene.remove(mesh);
+                this.heroMeshes.splice(i, 1);
+                return;
+            }
+        }
     }
 }
