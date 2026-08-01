@@ -59,9 +59,23 @@ const HERO_DATA = {
         skill: { name: 'Fortify', desc: 'Gain 300 shield', type: 'self', multiplier: 0, effect: 'shield', value: 300 }
     },
     s1: {
-        id: 's1', name: 'Luna', cost: 1, traits: ['support', 'celestial'], emoji: '🌙', color: '#ffcc44',
+        id: 's1', name: 'Luna', cost: 1, traits: ['support', 'celestial'], color: '#ffcc44',
         stats: { hp: 500, atk: 30, def: 20, spd: 0.6, range: 3 }, mana: { max: 60, start: 30 },
-        skill: { name: 'Moonlight', desc: 'Heal lowest ally 250 HP', type: 'heal', multiplier: 0, effect: 'heal', value: 250 }
+        skill: {
+            name: 'Moonlight Blessing',
+            desc: 'Heal lowest ally 250 HP',
+            type: 'heal',
+            healAmount: 250,
+            effect: 'heal',
+            vfx: {
+                skill: {
+                    type: 'moonlightHeal',
+                    colors: [0xffffff, 0xffdd44, 0xffaa00],
+                    scale: 1.2,
+                    textType: 'heal'
+                }
+            }
+        }
     },
     as1: {
         id: 'as1', name: 'Shade', cost: 1, traits: ['assassin', 'void'], emoji: '🌑', color: '#555577',

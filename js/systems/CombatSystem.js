@@ -171,11 +171,30 @@ class CombatSystem {
     }
 
     executeHealSkill(hero, allies, heroPos, skill) {
-        allies.forEach(a => {
-            if (!a.alive) return;
-            a.heal(skill.healAmount || 200);
-            if (this.vfx) { const ap = this.getPos(a).clone(); ap.y += 0.8; this.vfx.createFloatingText(ap, skill.healAmount || 200, 'heal'); }
-        });
+        // Find ally with lowest HP percentage
+        const target = allies
+            .filter(a => a.alive)
+            .sort((a, b) => (a.hp / a.maxHp) - (b.hp / b.maxHp))[0];
+
+        if (!target) return;
+
+        const healAmt = skill.healAmount || 250;
+        target.heal(healAmt);
+
+        if (this.vfx) {
+            const tPos = this.getPos(target).clone();
+            tPos.y += 0.8;
+
+            const vfxType = skill.vfx?.skill?.type || 'moonlightHeal';
+            this.vfx.createImpact(tPos, vfxType, {
+                colors: skill.vfx?.skill?.colors,
+                scale: skill.vfx?.skill?.scale || 1.2
+            });
+
+            const tp = tPos.clone();
+            tp.y += 2.0;
+            this.vfx.createFloatingText(tp, healAmt, 'heal');
+        }
     }
 
     executeSelfBuff(hero, skill) {
