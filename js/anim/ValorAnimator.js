@@ -67,74 +67,31 @@ class ValorAnimator extends HeroAnimator {
     }
 
     attack(t) {
-        const p = Math.min(t / 0.5, 1); // Fast 0.5s fluid slash
+        const p = Math.min(t / 0.55, 1);
 
         if (p < 0.3) {
-            // === 1. WIND-UP (Pull back onto back leg, cock blade) ===
+            // WIND-UP: Pull sword back
             const ep = (p / 0.3) ** 2;
-
-            this._set('torso', 'rotation', 'y', -1.2 * ep);
-            this._set('torso', 'rotation', 'x', -0.18 * ep);
-
-            // Legs shift weight back
-            this._set('pelvis', 'position', 'z', -0.25 * ep);
-            this._set('pelvis', 'position', 'y', -0.08 * ep);
-            this._set('thighR', 'rotation', 'x', 0.4 * ep);
-            this._set('calfR', 'rotation', 'x', 0.5 * ep);
-
-            // Sword arm cocks back over shoulder with bent forearm
-            this._set('armR', 'rotation', 'x', -2.4 * ep);
-            this._set('armR', 'rotation', 'y', 0.4 * ep);
-            this._set('armR', 'rotation', 'z', 0.8 * ep);
-            this._set('forearmR', 'rotation', 'x', -1.4 * ep);
-
-            // Shield pulls across chest for protection
-            this._set('armL', 'rotation', 'x', -0.7 * ep);
-            this._set('armL', 'rotation', 'y', 0.6 * ep);
-
-        } else if (p < 0.65) {
-            // === 2. EXPLOSIVE LUNGE & SLASH (Snap forward into front knee) ===
-            const ep = 1 - Math.pow(1 - (p - 0.3) / 0.35, 3); // Fast cubic out
-
-            this._set('torso', 'rotation', 'y', THREE.MathUtils.lerp(-1.2, 1.1, ep));
-            this._set('torso', 'rotation', 'x', THREE.MathUtils.lerp(-0.18, 0.4, ep));
-
-            // Heavy lunge stance
-            this._set('pelvis', 'position', 'z', THREE.MathUtils.lerp(-0.25, 0.45, ep));
-            this._set('pelvis', 'position', 'y', THREE.MathUtils.lerp(-0.08, -0.15, ep));
-            this._set('thighL', 'rotation', 'x', THREE.MathUtils.lerp(-0.22, -0.65, ep));
-            this._set('calfL', 'rotation', 'x', THREE.MathUtils.lerp(0.32, 0.8, ep));
-            this._set('thighR', 'rotation', 'x', THREE.MathUtils.lerp(0.4, 0.3, ep));
-
-            // Sword whips across horizontally & extends forearm at peak
-            this._set('armR', 'rotation', 'x', THREE.MathUtils.lerp(-2.4, 0.8, ep));
-            this._set('armR', 'rotation', 'y', THREE.MathUtils.lerp(0.4, -1.2, ep));
-            this._set('armR', 'rotation', 'z', THREE.MathUtils.lerp(0.8, -0.3, ep));
-            this._set('forearmR', 'rotation', 'x', THREE.MathUtils.lerp(-1.4, -0.2, ep));
-
-            // Shield opens outward to counterbalance torso torque
-            this._set('armL', 'rotation', 'x', THREE.MathUtils.lerp(-0.7, 0.2, ep));
-            this._set('armL', 'rotation', 'y', THREE.MathUtils.lerp(0.6, -0.5, ep));
-
-            this._set('cape', 'rotation', 'x', 0.9 * ep);
-
+            this._set('torso', 'rotation', 'y', -0.8 * ep);
+            this._set('armR', 'rotation', 'x', -2.0 * ep);
+            this._set('armR', 'rotation', 'z', 0.6 * ep);
+            this._set('forearmR', 'rotation', 'x', -1.0 * ep);
+            this._set('pelvis', 'position', 'z', -0.15 * ep);
+        } else if (p < 0.5) {
+            // SLASH: Explosive forward swing
+            const ep = 1 - (1 - (p - 0.3) / 0.2) ** 3;
+            this._set('torso', 'rotation', 'y', THREE.MathUtils.lerp(-0.8, 0.6, ep));
+            this._set('armR', 'rotation', 'x', THREE.MathUtils.lerp(-2.0, 0.8, ep));
+            this._set('armR', 'rotation', 'y', THREE.MathUtils.lerp(0, -0.6, ep));
+            this._set('pelvis', 'position', 'z', THREE.MathUtils.lerp(-0.15, 0.2, ep));
+            this._set('cape', 'rotation', 'x', 0.5 * ep);
         } else {
-            // === 3. RECOVERY (Smooth ease back to idle stance) ===
-            const ep = ((p - 0.65) / 0.35) ** 2;
-
-            this._set('torso', 'rotation', 'y', THREE.MathUtils.lerp(1.1, 0, ep));
-            this._set('torso', 'rotation', 'x', THREE.MathUtils.lerp(0.4, 0, ep));
-
-            this._set('pelvis', 'position', 'z', THREE.MathUtils.lerp(0.45, 0, ep));
-            this._set('pelvis', 'position', 'y', THREE.MathUtils.lerp(-0.15, 0, ep));
-            this._set('thighL', 'rotation', 'x', THREE.MathUtils.lerp(-0.65, -0.22, ep));
-            this._set('calfL', 'rotation', 'x', THREE.MathUtils.lerp(0.8, 0.32, ep));
-
-            this._set('armR', 'rotation', 'x', THREE.MathUtils.lerp(0.8, -0.65, ep));
-            this._set('armR', 'rotation', 'y', THREE.MathUtils.lerp(-1.2, 0, ep));
-            this._set('forearmR', 'rotation', 'x', THREE.MathUtils.lerp(-0.2, -0.9, ep));
-
-            this._set('armL', 'rotation', 'y', THREE.MathUtils.lerp(-0.5, 0.2, ep));
+            // RECOVER
+            const ep = ((p - 0.5) / 0.5) ** 2;
+            this._set('torso', 'rotation', 'y', THREE.MathUtils.lerp(0.6, 0, ep));
+            this._set('armR', 'rotation', 'x', THREE.MathUtils.lerp(0.8, -0.6, ep));
+            this._set('armR', 'rotation', 'y', THREE.MathUtils.lerp(-0.6, 0, ep));
+            this._set('pelvis', 'position', 'z', THREE.MathUtils.lerp(0.2, 0, ep));
         }
 
         if (p >= 1) this.play('idle');

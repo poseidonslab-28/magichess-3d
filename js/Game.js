@@ -27,6 +27,8 @@ class Game {
         this.synergyUI = new SynergyUI(this);
         this.vfx = new VFXRenderer(this.board3D.scene);
         this.combat.vfx = this.vfx;
+        console.log('VFX initialized:', !!this.vfx, 'combat.vfx:', !!this.combat.vfx);
+        this.combat.vfx = this.vfx;
         this.codexUI = new CodexUI(this);
         this._initDragArcVFX();
 

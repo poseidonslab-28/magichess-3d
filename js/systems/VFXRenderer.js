@@ -154,6 +154,9 @@ class VFXRenderer {
             case 'iceShard':
                 this.makeIceShard(group);
                 break;
+            case 'glacialNova':
+                this.glacialNovaEffect(group, color);
+                break;
             case 'magicBolt':
             default:
                 this.makeMagicBolt(group, color);
@@ -223,8 +226,534 @@ class VFXRenderer {
             case 'iceBurst': this.iceBurst(position, scale, color, duration); break;
             case 'freezePrison': this.freezePrison(position, scale, color, duration); break;
             case 'flash': this.flash(position, scale, duration); break;
+            case 'holyStrike': this.holyStrikeEffect(position, options); break;
+            case 'fireBoost': this.fireBoostEffect(position, options); break;
+            case 'glacialNova': this.glacialNovaEffect(position, options); break;
+            case 'frostSigil': this.frostSigilEffect(position, options); break;
             default: break;
         }
+    }
+
+    frostSigilEffect(pos, options = {}) {
+        const scale = options.scale || 1.5;
+        const colors = options.colors || [0xaaddff, 0x88ccff, 0xffffff];
+
+        // === ICE SIGIL on target (circle rune) ===
+        const sigilMat = new THREE.MeshBasicMaterial({
+            color: 0xaaddff,
+            transparent: true,
+            opacity: 0.7,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const sigil = new THREE.Mesh(this.unitTorus, sigilMat);
+        sigil.position.copy(pos);
+        sigil.position.y += 0.05;
+        sigil.rotation.x = Math.PI / 2;
+        sigil.scale.setScalar(0.5 * scale);
+        sigil.renderOrder = 9999;
+        this.scene.add(sigil);
+
+        this.activeEffects.push({
+            group: sigil, life: 1.5, time: 0,
+            update: (dt) => {
+                sigil.userData.time = (sigil.userData.time || 0) + dt;
+                const t = sigil.userData.time / 1.5;
+                sigil.scale.setScalar((0.5 + t * 1.0) * scale);
+                sigil.position.y += 0.1 * dt;
+                sigilMat.opacity = 0.7 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(sigil); sigilMat.dispose(); }
+        });
+
+        // === INNER RUNE (smaller, brighter) ===
+        const innerMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const inner = new THREE.Mesh(this.unitTorus, innerMat);
+        inner.position.copy(pos);
+        inner.position.y += 0.06;
+        inner.rotation.x = Math.PI / 2;
+        inner.scale.setScalar(0.2 * scale);
+        inner.renderOrder = 9999;
+        this.scene.add(inner);
+
+        this.activeEffects.push({
+            group: inner, life: 0.8, time: 0,
+            update: (dt) => {
+                inner.userData.time = (inner.userData.time || 0) + dt;
+                const t = inner.userData.time / 0.8;
+                inner.scale.setScalar((0.2 + t * 0.8) * scale);
+                innerMat.opacity = 0.9 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(inner); innerMat.dispose(); }
+        });
+
+        // === ICE CRYSTALS bursting up ===
+        for (let i = 0; i < 8; i++) {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const mat = new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 0.6,
+                transparent: true,
+                opacity: 0.8,
+                roughness: 0.1,
+                depthTest: false,
+                depthWrite: false
+            });
+            const crystal = new THREE.Mesh(this.unitCone, mat);
+            crystal.position.copy(pos);
+            crystal.position.y += 0.1;
+            crystal.scale.set(0.04 * scale, 0.2 * scale, 0.04 * scale);
+            crystal.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            crystal.renderOrder = 9999;
+            this.scene.add(crystal);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 2;
+
+            this.activeEffects.push({
+                group: crystal, life: 0.6, time: 0,
+                update: (dt) => {
+                    crystal.userData.time = (crystal.userData.time || 0) + dt;
+                    const t = crystal.userData.time / 0.6;
+                    crystal.position.x += Math.cos(angle) * speed * dt * scale;
+                    crystal.position.y += speed * 0.5 * dt * scale;
+                    crystal.position.z += Math.sin(angle) * speed * dt * scale;
+                    crystal.rotation.x += dt * 6;
+                    mat.opacity = 0.8 * (1 - t);
+                },
+                cleanup: () => { this.scene.remove(crystal); mat.dispose(); }
+            });
+        }
+
+        // === SLOW AURA RING (expanding outward) ===
+        const slowMat = new THREE.MeshBasicMaterial({
+            color: 0x88ccff,
+            transparent: true,
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const slowRing = new THREE.Mesh(this.unitTorus, slowMat);
+        slowRing.position.copy(pos);
+        slowRing.position.y += 0.05;
+        slowRing.rotation.x = Math.PI / 2;
+        slowRing.scale.setScalar(0.3 * scale);
+        slowRing.renderOrder = 9998;
+        this.scene.add(slowRing);
+
+        this.activeEffects.push({
+            group: slowRing, life: 2.0, time: 0,
+            update: (dt) => {
+                slowRing.userData.time = (slowRing.userData.time || 0) + dt;
+                const t = slowRing.userData.time / 2.0;
+                slowRing.scale.setScalar((0.3 + t * 2.5) * scale); // Expands to show slow radius
+                slowMat.opacity = 0.4 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(slowRing); slowMat.dispose(); }
+        });
+    }
+
+    glacialNovaEffect(pos, options = {}) {
+        const scale = options.scale || 2.5;
+        const colors = options.colors || [0xffffff, 0xaaddff, 0x88ccff, 0x4488cc];
+
+        // === ICE CRYSTAL BURST (center) ===
+        for (let i = 0; i < 15; i++) {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const mat = new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: color,
+                emissiveIntensity: 0.8,
+                transparent: true,
+                opacity: 0.9,
+                roughness: 0.1,
+                metalness: 0.3,
+                depthTest: false,
+                depthWrite: false
+            });
+
+            const crystal = new THREE.Mesh(this.unitCone, mat);
+            crystal.position.copy(pos);
+            crystal.position.y += 0.3;
+            crystal.scale.set(0.08 * scale, 0.4 * scale, 0.08 * scale);
+            crystal.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            crystal.renderOrder = 9999;
+            crystal.frustumCulled = false;
+            this.scene.add(crystal);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 5;
+
+            this.activeEffects.push({
+                group: crystal, life: 0.5, time: 0,
+                update: (dt) => {
+                    crystal.userData.time = (crystal.userData.time || 0) + dt;
+                    const t = crystal.userData.time / 0.5;
+                    crystal.position.x += Math.cos(angle) * speed * dt * scale;
+                    crystal.position.y += speed * 0.4 * dt * scale;
+                    crystal.position.z += Math.sin(angle) * speed * dt * scale;
+                    crystal.rotation.x += dt * 8;
+                    crystal.rotation.y += dt * 6;
+                    mat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(crystal); mat.dispose(); }
+            });
+        }
+
+        // === FROST SHOCKWAVE (expanding ice ring) ===
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xaaddff,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const ring = new THREE.Mesh(this.unitTorus, ringMat);
+        ring.position.copy(pos);
+        ring.position.y += 0.2;
+        ring.rotation.x = Math.PI / 2;
+        ring.scale.setScalar(0.3 * scale);
+        ring.renderOrder = 9999;
+        ring.frustumCulled = false;
+        this.scene.add(ring);
+
+        this.activeEffects.push({
+            group: ring, life: 0.6, time: 0,
+            update: (dt) => {
+                ring.userData.time = (ring.userData.time || 0) + dt;
+                const t = ring.userData.time / 0.6;
+                ring.scale.setScalar((0.3 + t * 4.0) * scale);
+                ringMat.opacity = 1 - t;
+            },
+            cleanup: () => { this.scene.remove(ring); ringMat.dispose(); }
+        });
+
+        // === INNER FLASH ===
+        const flashMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const flash = new THREE.Mesh(this.unitSphere, flashMat);
+        flash.position.copy(pos);
+        flash.position.y += 0.3;
+        flash.scale.setScalar(0.5 * scale);
+        flash.renderOrder = 9999;
+        this.scene.add(flash);
+
+        this.activeEffects.push({
+            group: flash, life: 0.25, time: 0,
+            update: (dt) => {
+                flash.userData.time = (flash.userData.time || 0) + dt;
+                const t = flash.userData.time / 0.25;
+                flash.scale.setScalar((0.5 + t * 2.0) * scale);
+                flashMat.opacity = 1 - t;
+            },
+            cleanup: () => { this.scene.remove(flash); flashMat.dispose(); }
+        });
+
+        // === FROST MIST (lingering cloud) ===
+        const mistMat = new THREE.MeshBasicMaterial({
+            color: 0xaaddff,
+            transparent: true,
+            opacity: 0.4,
+            depthTest: false,
+            depthWrite: false
+        });
+        const mist = new THREE.Mesh(this.unitSphere, mistMat);
+        mist.position.copy(pos);
+        mist.position.y += 0.3;
+        mist.scale.setScalar(0.3 * scale);
+        mist.renderOrder = 1;
+        this.scene.add(mist);
+
+        this.activeEffects.push({
+            group: mist, life: 1.2, time: 0,
+            update: (dt) => {
+                mist.userData.time = (mist.userData.time || 0) + dt;
+                const t = mist.userData.time / 1.2;
+                mist.scale.setScalar((0.3 + t * 3.0) * scale);
+                mist.position.y += 0.2 * dt;
+                mistMat.opacity = 0.4 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(mist); mistMat.dispose(); }
+        });
+
+        // === FROZEN GROUND (icy circle) ===
+        const groundMat = new THREE.MeshBasicMaterial({
+            color: 0xaaddff,
+            transparent: true,
+            opacity: 0.5,
+            depthTest: false,
+            depthWrite: false
+        });
+        const ground = new THREE.Mesh(this.unitPlane, groundMat);
+        ground.position.copy(pos);
+        ground.position.y += 0.02;
+        ground.rotation.x = -Math.PI / 2;
+        ground.scale.setScalar(0.3 * scale);
+        ground.renderOrder = 1;
+        this.scene.add(ground);
+
+        this.activeEffects.push({
+            group: ground, life: 1.5, time: 0,
+            update: (dt) => {
+                ground.userData.time = (ground.userData.time || 0) + dt;
+                const t = ground.userData.time / 1.5;
+                ground.scale.setScalar((0.3 + t * 3.5) * scale);
+                groundMat.opacity = 0.5 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(ground); groundMat.dispose(); }
+        });
+    }
+
+    fireBoostEffect(pos, options = {}) {
+        const scale = options.scale || 1.5;
+        const colors = [0xff2200, 0xff6600, 0xffaa00, 0xffdd00, 0xffffff];
+
+        // === FIRE JET STREAKS (like rocket boosters) ===
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            const mat = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+
+            // Long streak (like fire trail)
+            const streak = new THREE.Mesh(this.unitPlane, mat);
+            streak.position.copy(pos);
+            streak.position.y += 0.3;
+            streak.scale.set(0.1 * scale, 2.0 * scale, 1);
+            streak.rotation.z = angle;
+            streak.renderOrder = 9999;
+            streak.frustumCulled = false;
+            this.scene.add(streak);
+
+            const speed = 3 + Math.random() * 4;
+
+            this.activeEffects.push({
+                group: streak, life: 0.35, time: 0,
+                update: (dt) => {
+                    streak.userData.time = (streak.userData.time || 0) + dt;
+                    const t = streak.userData.time / 0.35;
+                    streak.position.x += Math.cos(angle) * speed * dt * scale;
+                    streak.position.y += 0.5 * dt * scale;
+                    streak.position.z += Math.sin(angle) * speed * dt * scale;
+                    streak.scale.y = (2.0 + t * 1.5) * scale; // Stretch outward
+                    mat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(streak); mat.dispose(); }
+            });
+        }
+
+        // === CENTER FLASH ===
+        const flashMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const flash = new THREE.Mesh(this.unitSphere, flashMat);
+        flash.position.copy(pos);
+        flash.position.y += 0.3;
+        flash.scale.setScalar(0.2 * scale);
+        flash.renderOrder = 9999;
+        this.scene.add(flash);
+
+        this.activeEffects.push({
+            group: flash, life: 0.2, time: 0,
+            update: (dt) => {
+                flash.userData.time = (flash.userData.time || 0) + dt;
+                const t = flash.userData.time / 0.2;
+                flash.scale.setScalar((0.2 + t * 1.5) * scale);
+                flashMat.opacity = 1 - t;
+            },
+            cleanup: () => { this.scene.remove(flash); flashMat.dispose(); }
+        });
+
+        // === SMOKE RINGS ===
+        for (let i = 0; i < 3; i++) {
+            setTimeout(() => {
+                const smokeMat = new THREE.MeshBasicMaterial({
+                    color: 0x444444,
+                    transparent: true,
+                    opacity: 0.5,
+                    depthTest: false,
+                    depthWrite: false
+                });
+                const smoke = new THREE.Mesh(this.unitTorus, smokeMat);
+                smoke.position.copy(pos);
+                smoke.position.y += 0.1 + i * 0.2;
+                smoke.rotation.x = Math.PI / 2;
+                smoke.scale.setScalar(0.3 * scale);
+                smoke.renderOrder = 9998;
+                this.scene.add(smoke);
+
+                this.activeEffects.push({
+                    group: smoke, life: 0.6, time: 0,
+                    update: (dt) => {
+                        smoke.userData.time = (smoke.userData.time || 0) + dt;
+                        const t = smoke.userData.time / 0.6;
+                        smoke.scale.setScalar((0.3 + t * 3.0) * scale);
+                        smoke.position.y += 0.5 * dt;
+                        smokeMat.opacity = 0.5 * (1 - t);
+                    },
+                    cleanup: () => { this.scene.remove(smoke); smokeMat.dispose(); }
+                });
+            }, i * 50);
+        }
+    }
+
+    holyStrikeEffect(pos, options = {}) {
+        const scale = options.scale || 2.0;
+        const colors = options.colors || [0xff0000, 0xff6600, 0xffaa00, 0xffdd00, 0xffffff];
+
+        // === CROSS SLASH (Red + Orange) ===
+        for (let i = 0; i < 2; i++) {
+            const mat = new THREE.MeshBasicMaterial({
+                color: colors[i],
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const slash = new THREE.Mesh(this.unitPlane, mat);
+            slash.position.copy(pos);
+            slash.position.y += 0.6;
+            slash.scale.set(2.5 * scale, 6.0 * scale, 1);
+            slash.rotation.z = i === 0 ? -0.4 : 0.5;
+            slash.renderOrder = 9999;
+            slash.frustumCulled = false;
+            this.scene.add(slash);
+
+            this.activeEffects.push({
+                group: slash, life: 0.4, time: 0,
+                update: (dt) => {
+                    slash.userData.time = (slash.userData.time || 0) + dt;
+                    const t = slash.userData.time / 0.4;
+                    slash.scale.x = (2.5 + t * 4.0) * scale;
+                    mat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(slash); mat.dispose(); }
+            });
+        }
+
+        // === FIRE SPARKS (Orange + Yellow) ===
+        for (let i = 0; i < 20; i++) {
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const mat = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const spark = new THREE.Mesh(this.unitSphere, mat);
+            spark.position.copy(pos);
+            spark.position.y += 0.5;
+            spark.scale.setScalar(0.1 * scale);
+            spark.renderOrder = 9999;
+            spark.frustumCulled = false;
+            this.scene.add(spark);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 3 + Math.random() * 6;
+
+            this.activeEffects.push({
+                group: spark, life: 0.4 + Math.random() * 0.3, time: 0,
+                update: (dt) => {
+                    spark.userData.time = (spark.userData.time || 0) + dt;
+                    const t = spark.userData.time / 0.5;
+                    spark.position.x += Math.cos(angle) * speed * dt * scale;
+                    spark.position.y += (speed * 0.6) * dt * scale;
+                    spark.position.z += Math.sin(angle) * speed * dt * scale;
+                    spark.scale.setScalar(0.1 * scale * (1 - t));
+                    mat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(spark); mat.dispose(); }
+            });
+        }
+
+        // === IMPACT SHOCKWAVE (White outer ring) ===
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const ring = new THREE.Mesh(this.unitTorus, ringMat);
+        ring.position.copy(pos);
+        ring.position.y += 0.3;
+        ring.rotation.x = Math.PI / 2;
+        ring.scale.setScalar(0.2 * scale);
+        ring.renderOrder = 9999;
+        ring.frustumCulled = false;
+        this.scene.add(ring);
+
+        this.activeEffects.push({
+            group: ring, life: 0.5, time: 0,
+            update: (dt) => {
+                ring.userData.time = (ring.userData.time || 0) + dt;
+                const t = ring.userData.time / 0.5;
+                ring.scale.setScalar((0.2 + t * 3.5) * scale);
+                ringMat.opacity = 1 - t;
+            },
+            cleanup: () => { this.scene.remove(ring); ringMat.dispose(); }
+        });
+
+        // === GROUND SCORCH (dark circle) ===
+        const scorchMat = new THREE.MeshBasicMaterial({
+            color: 0x1a0a00,
+            transparent: true,
+            opacity: 0.6,
+            depthTest: false,
+            depthWrite: false
+        });
+        const scorch = new THREE.Mesh(this.unitPlane, scorchMat);
+        scorch.position.copy(pos);
+        scorch.position.y += 0.02;
+        scorch.rotation.x = -Math.PI / 2;
+        scorch.scale.setScalar(0.5 * scale);
+        scorch.renderOrder = 1;
+        this.scene.add(scorch);
+
+        this.activeEffects.push({
+            group: scorch, life: 1.0, time: 0,
+            update: (dt) => {
+                scorch.userData.time = (scorch.userData.time || 0) + dt;
+                const t = scorch.userData.time / 1.0;
+                scorch.scale.setScalar((0.5 + t * 2.0) * scale);
+                scorchMat.opacity = 0.6 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(scorch); scorchMat.dispose(); }
+        });
     }
 
     // --- PROJECTILE BUILDERS ---
@@ -577,41 +1106,77 @@ class VFXRenderer {
         }
     }
 
-    slashEffect(pos) {
-        const mat = new THREE.MeshBasicMaterial({
+    slashEffect(pos, options = {}) {
+        const scale = options.scale || 0.5; // Smaller default scale
+        const color = options.color || 0xffffff;
+
+        // === SINGLE SLASH (quick and small) ===
+        const mat1 = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             side: THREE.DoubleSide,
             transparent: true,
-            opacity: 1.0,
+            opacity: 0.9,
             blending: THREE.AdditiveBlending,
             depthTest: false,
             depthWrite: false
         });
-        const slash = new THREE.Mesh(this.unitPlane, mat);
-        slash.position.copy(pos);
-        slash.position.y += 0.5;
-        slash.scale.set(1.5, 5.0, 1); // MASSIVE - 1.5 wide, 5 tall
-        slash.rotation.z = (Math.random() - 0.5) * 0.8;
-        slash.renderOrder = 9999;
-        slash.frustumCulled = false;
-        this.scene.add(slash);
+        const slash1 = new THREE.Mesh(this.unitPlane, mat1);
+        slash1.position.copy(pos);
+        slash1.position.y += 0.4;
+        slash1.scale.set(0.8 * scale, 2.5 * scale, 1);
+        slash1.rotation.z = (Math.random() - 0.5) * 0.6;
+        slash1.renderOrder = 9999;
+        slash1.frustumCulled = false;
+        this.scene.add(slash1);
 
-        const lifeSpan = 0.35;
+        // === FEW SPARKS (just 4-5) ===
+        const sparkMat = new THREE.MeshBasicMaterial({
+            color: 0xffdd00,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+
+        for (let i = 0; i < 5; i++) {
+            const spark = new THREE.Mesh(this.unitSphere, sparkMat);
+            spark.position.copy(pos);
+            spark.position.y += 0.4;
+            spark.scale.setScalar(0.04 * scale);
+            spark.renderOrder = 9999;
+            spark.frustumCulled = false;
+            this.scene.add(spark);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 2;
+
+            this.activeEffects.push({
+                group: spark, life: 0.2, time: 0,
+                update: (dt) => {
+                    spark.userData.time = (spark.userData.time || 0) + dt;
+                    const t = spark.userData.time / 0.2;
+                    spark.position.x += Math.cos(angle) * speed * dt * scale;
+                    spark.position.y += speed * 0.3 * dt * scale;
+                    spark.position.z += Math.sin(angle) * speed * dt * scale;
+                    spark.scale.setScalar(0.04 * scale * (1 - t));
+                    spark.material.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(spark); spark.material.dispose(); }
+            });
+        }
+
+        // Quick fade for slash
+        const lifeSpan = 0.2;
         this.activeEffects.push({
-            group: slash,
-            life: lifeSpan,
-            time: 0,
+            group: slash1, life: lifeSpan, time: 0,
             update: (dt) => {
-                slash.userData.time = (slash.userData.time || 0) + dt;
-                const t = slash.userData.time / lifeSpan;
-                slash.scale.x = 1.5 + t * 3.0; // Expand outward
-                slash.scale.y = 5.0 + t * 2.0;
-                mat.opacity = 1 - t;
+                slash1.userData.time = (slash1.userData.time || 0) + dt;
+                const t = slash1.userData.time / lifeSpan;
+                slash1.scale.x = (0.8 + t * 1.0) * scale;
+                mat1.opacity = 1 - t;
             },
-            cleanup: () => {
-                this.scene.remove(slash);
-                mat.dispose();
-            }
+            cleanup: () => { this.scene.remove(slash1); mat1.dispose(); }
         });
     }
 
@@ -968,4 +1533,6 @@ class VFXRenderer {
             }
         });
     }
+
+
 }
