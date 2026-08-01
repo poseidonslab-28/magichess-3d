@@ -1,21 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Magic Chess 3D</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    
+
     <!-- Game UI Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
     <div id="game-container"></div>
-    
+
     <div id="game-ui">
         <!-- TOP HUD & CONTROLS -->
         <div id="top-bar">
@@ -37,7 +41,7 @@
             </div>
             <div id="synergy-list"></div>
         </div>
-        
+
         <!-- PLAYER HUD (RIGHT) -->
         <div id="hud-panel" class="fantasy-panel">
             <div class="hud-stat-chip gold-chip">
@@ -47,7 +51,7 @@
                     <span id="gold-display" class="stat-value">10</span>
                 </div>
             </div>
-            
+
             <div class="hud-stat-chip hp-chip">
                 <span class="stat-icon">❤️</span>
                 <div class="stat-info">
@@ -55,7 +59,7 @@
                     <span id="health-display" class="stat-value">100</span>
                 </div>
             </div>
-            
+
             <div class="hud-stat-chip lvl-chip">
                 <span class="stat-icon">⭐</span>
                 <div class="stat-info">
@@ -71,20 +75,20 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- BENCH DOCK (BOTTOM CENTER) -->
         <div id="bench-area" class="fantasy-panel">
             <div class="section-title">BENCH SLOTS</div>
             <div id="bench-slots"></div>
         </div>
-        
+
         <!-- MAIN ACTION BUTTONS -->
         <div id="action-bar">
             <button id="btn-start" class="btn-epic-start">
                 <span class="btn-glow"></span>
                 <span class="btn-text">START ROUND</span>
             </button>
-            
+
             <div class="secondary-actions">
                 <button id="btn-open-codex" class="codex-btn" title="Hero Codex">
                     <span class="btn-icon">📜</span>
@@ -108,9 +112,9 @@
                     </div>
                     <button class="shop-modal-close" id="btn-close-shop">✕</button>
                 </div>
-                
+
                 <div id="shop-heroes"></div>
-                
+
                 <div class="shop-modal-footer">
                     <button id="btn-reroll-modal" class="top-btn btn-arcade">
                         <span>REROLL</span>
@@ -136,12 +140,12 @@
                     </div>
                     <button class="codex-close" id="btn-close-codex">✕</button>
                 </div>
-                
+
                 <div class="codex-tabs">
                     <button class="codex-tab active" data-tab="heroes">Heroes</button>
                     <button class="codex-tab" data-tab="synergies">Synergies</button>
                 </div>
-                
+
                 <div class="codex-content">
                     <div id="codex-heroes" class="codex-page active">
                         <div class="codex-hero-grid" id="codex-hero-grid"></div>
@@ -153,7 +157,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Scripts -->
     <script src="js/data/heroes.js"></script>
     <script src="js/data/synergies.js"></script>
@@ -177,7 +181,6 @@
     <script src="js/systems/PoolSystem.js"></script>
     <script src="js/systems/CombatSystem.js"></script>
     <script src="js/systems/SkillRenderer.js"></script>
-    <script src="js/systems/VFXRenderer.js"></script>
 
     <script src="js/ui/HUD.js"></script>
     <script src="js/ui/ShopUI.js"></script>
@@ -194,6 +197,14 @@
     <script src="js/anim/FrostAnimator.js"></script>
     <script src="js/anim/WindAnimator.js"></script>
 
+    <script src="js/vfx/VFXCore.js"></script>
+    <script src="js/vfx/ValorVFX.js"></script>
+    <script src="js/vfx/FrostVFX.js"></script>
+    <script src="js/vfx/WindVFX.js"></script>
+    <script src="js/vfx/LunaVFX.js"></script>
+    <script src="js/vfx/VFXRenderer.js"></script>
+
     <script src="js/main.js"></script>
 </body>
+
 </html>
