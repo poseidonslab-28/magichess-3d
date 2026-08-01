@@ -157,6 +157,9 @@ class VFXRenderer {
             case 'glacialNova':
                 this.glacialNovaEffect(group, color);
                 break;
+            case 'windArrow':
+                this.makeWindArrow(group, color);
+                break;
             case 'magicBolt':
             default:
                 this.makeMagicBolt(group, color);
@@ -210,6 +213,128 @@ class VFXRenderer {
         return effect;
     }
 
+    makeWindArrow(group, color) {
+        // Giant arrow
+        const shaftMat = new THREE.MeshStandardMaterial({ color: 0x88ff44, emissive: 0x44cc22, emissiveIntensity: 0.5 });
+        const shaft = new THREE.Mesh(this.unitCylinder, shaftMat);
+        shaft.scale.set(0.08, 1.5, 0.08);
+        shaft.rotation.x = Math.PI / 2;
+        group.add(shaft);
+
+        // Arrow head
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.0 });
+        const head = new THREE.Mesh(this.unitCone, headMat);
+        head.scale.set(0.15, 0.3, 0.15);
+        head.position.z = 0.85;
+        head.rotation.x = Math.PI / 2;
+        group.add(head);
+
+        // Wind trails (spiraling)
+        for (let i = 0; i < 6; i++) {
+            const trailMat = new THREE.MeshBasicMaterial({
+                color: 0x88ff44,
+                transparent: true,
+                opacity: 0.5,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const trail = new THREE.Mesh(this.unitCylinder, trailMat);
+            trail.scale.set(0.02, 0.6, 0.02);
+            trail.position.z = -0.3 + i * 0.1;
+            trail.rotation.x = Math.PI / 2;
+            trail.rotation.z = i * 0.8;
+            group.add(trail);
+        }
+
+        // Wind swirl particles
+        for (let i = 0; i < 4; i++) {
+            const swirlMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.7,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const swirl = new THREE.Mesh(this.unitPlane, swirlMat);
+            swirl.scale.set(0.1, 0.3, 1);
+            swirl.position.z = -0.2 + i * 0.1;
+            swirl.rotation.z = i * 1.2;
+            group.add(swirl);
+        }
+    }
+
+    windArrowEffect(pos, options = {}) {
+        const scale = options.scale || 1.5;
+
+        // Wind explosion rings
+        for (let i = 0; i < 3; i++) {
+            setTimeout(() => {
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: 0x88ff44,
+                    transparent: true,
+                    opacity: 0.7,
+                    blending: THREE.AdditiveBlending,
+                    depthTest: false,
+                    depthWrite: false
+                });
+                const ring = new THREE.Mesh(this.unitTorus, ringMat);
+                ring.position.copy(pos);
+                ring.position.y += 0.1 + i * 0.2;
+                ring.rotation.x = Math.PI / 2;
+                ring.scale.setScalar(0.2 * scale);
+                ring.renderOrder = 9999;
+                this.scene.add(ring);
+
+                this.activeEffects.push({
+                    group: ring, life: 0.5, time: 0,
+                    update: (dt) => {
+                        ring.userData.time = (ring.userData.time || 0) + dt;
+                        const t = ring.userData.time / 0.5;
+                        ring.scale.setScalar((0.2 + t * 3.5 + i * 0.5) * scale);
+                        ringMat.opacity = 1 - t;
+                    },
+                    cleanup: () => { this.scene.remove(ring); ringMat.dispose(); }
+                });
+            }, i * 80);
+        }
+
+        // Wind burst particles
+        for (let i = 0; i < 15; i++) {
+            const mat = new THREE.MeshBasicMaterial({
+                color: i % 2 === 0 ? 0xffffff : 0x88ff44,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const particle = new THREE.Mesh(this.unitPlane, mat);
+            particle.position.copy(pos);
+            particle.position.y += 0.3;
+            particle.scale.set(0.04 * scale, 0.12 * scale, 1);
+            particle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            particle.renderOrder = 9999;
+            this.scene.add(particle);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 3 + Math.random() * 5;
+
+            this.activeEffects.push({
+                group: particle, life: 0.5, time: 0,
+                update: (dt) => {
+                    particle.userData.time = (particle.userData.time || 0) + dt;
+                    const t = particle.userData.time / 0.5;
+                    particle.position.x += Math.cos(angle) * speed * dt * scale;
+                    particle.position.y += speed * 0.5 * dt * scale;
+                    particle.position.z += Math.sin(angle) * speed * dt * scale;
+                    particle.rotation.z += dt * 10;
+                    mat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(particle); mat.dispose(); }
+            });
+        }
+    }
+
     // --- IMPACT ROUTER (with options) ---
     createImpact(position, type, options = {}) {
         const { scale = 1, color = 0xffdd44, duration = 500 } = options;
@@ -230,42 +355,210 @@ class VFXRenderer {
             case 'fireBoost': this.fireBoostEffect(position, options); break;
             case 'glacialNova': this.glacialNovaEffect(position, options); break;
             case 'frostSigil': this.frostSigilEffect(position, options); break;
+            case 'windArrow': this.windArrowEffect(position, options); break;
             default: break;
         }
     }
 
-    moonlightHealEffect(pos, options = {}) {
-        const scale = options.scale || 1.2;
-        const colors = options.colors || [0xffffff, 0xffdd44, 0xffaa00];
+    piercingShotEffect(pos, options = {}) {
+        const scale = options.scale || 1.5;
 
-        // === MOON BEAM from above ===
-        const beamMat = new THREE.MeshBasicMaterial({
+        // === PIERCING ARROW (giant ghost arrow) ===
+        const arrowMat = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
-            opacity: 0.3,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+
+        // Giant arrow shaft
+        const shaft = new THREE.Mesh(this.unitCylinder, arrowMat);
+        shaft.position.copy(pos);
+        shaft.position.y += 0.5;
+        shaft.scale.set(0.06 * scale, 2.5 * scale, 0.06 * scale);
+        shaft.renderOrder = 9999;
+        this.scene.add(shaft);
+
+        // Arrow head
+        const head = new THREE.Mesh(this.unitCone, arrowMat);
+        head.position.copy(pos);
+        head.position.y += 0.5 + 1.25 * scale;
+        head.scale.set(0.12 * scale, 0.3 * scale, 0.12 * scale);
+        head.renderOrder = 9999;
+        this.scene.add(head);
+
+        // === GREEN SHOCKWAVE ===
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x88ff44,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const ring = new THREE.Mesh(this.unitTorus, ringMat);
+        ring.position.copy(pos);
+        ring.position.y += 0.1;
+        ring.rotation.x = Math.PI / 2;
+        ring.scale.setScalar(0.2 * scale);
+        ring.renderOrder = 9999;
+        this.scene.add(ring);
+
+        this.activeEffects.push({
+            group: ring, life: 0.5, time: 0,
+            update: (dt) => {
+                ring.userData.time = (ring.userData.time || 0) + dt;
+                const t = ring.userData.time / 0.5;
+                ring.scale.setScalar((0.2 + t * 3.0) * scale);
+                ringMat.opacity = 1 - t;
+            },
+            cleanup: () => { this.scene.remove(ring); ringMat.dispose(); }
+        });
+
+        // === LEAF/WIND SPARKS ===
+        for (let i = 0; i < 10; i++) {
+            const mat = new THREE.MeshBasicMaterial({
+                color: i % 2 === 0 ? 0x88ff44 : 0xffffff,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const spark = new THREE.Mesh(this.unitPlane, mat);
+            spark.position.copy(pos);
+            spark.position.y += 0.3;
+            spark.scale.set(0.05 * scale, 0.15 * scale, 1);
+            spark.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+            spark.renderOrder = 9999;
+            this.scene.add(spark);
+
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 4;
+
+            this.activeEffects.push({
+                group: spark, life: 0.5, time: 0,
+                update: (dt) => {
+                    spark.userData.time = (spark.userData.time || 0) + dt;
+                    const t = spark.userData.time / 0.5;
+                    spark.position.x += Math.cos(angle) * speed * dt * scale;
+                    spark.position.y += speed * dt * scale;
+                    spark.position.z += Math.sin(angle) * speed * dt * scale;
+                    spark.rotation.z += dt * 8;
+                    mat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(spark); mat.dispose(); }
+            });
+        }
+
+        // Arrow fade
+        this.activeEffects.push({
+            group: shaft, life: 0.4, time: 0,
+            update: (dt) => {
+                const t = (shaft.userData.time || 0) / 0.4;
+                shaft.scale.x = (0.06 + t * 0.5) * scale;
+                arrowMat.opacity = 0.9 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(shaft); arrowMat.dispose(); }
+        });
+
+        this.activeEffects.push({
+            group: head, life: 0.3, time: 0,
+            update: (dt) => {
+                const t = (head.userData.time || 0) / 0.3;
+                head.position.y += 3 * dt * scale;
+                arrowMat.opacity = 0.9 * (1 - t);
+            },
+            cleanup: () => { this.scene.remove(head); }
+        });
+    }
+
+    moonlightHealEffect(pos, options = {}) {
+        const scale = options.scale || 1.2;
+
+        // === DIVINE LIGHT BEAM (thick pillar from sky) ===
+        const beamMat = new THREE.MeshBasicMaterial({
+            color: 0xfffde8,
+            transparent: true,
+            opacity: 0.5,
             blending: THREE.AdditiveBlending,
             depthTest: false,
             depthWrite: false
         });
         const beam = new THREE.Mesh(this.unitCylinder, beamMat);
         beam.position.copy(pos);
-        beam.position.y += 1.5;
-        beam.scale.set(0.3 * scale, 3.0, 0.3 * scale);
+        beam.position.y += 2.5;
+        beam.scale.set(0.5 * scale, 5.0, 0.5 * scale);
         beam.renderOrder = 9998;
         this.scene.add(beam);
 
+        // Inner bright core
+        const coreMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const core = new THREE.Mesh(this.unitCylinder, coreMat);
+        core.position.copy(pos);
+        core.position.y += 2.5;
+        core.scale.set(0.15 * scale, 5.0, 0.15 * scale);
+        core.renderOrder = 9999;
+        this.scene.add(core);
+
         this.activeEffects.push({
-            group: beam, life: 0.8, time: 0,
+            group: new THREE.Group(), life: 1.0, time: 0,
+            children: [beam, core],
             update: (dt) => {
-                beam.userData.time = (beam.userData.time || 0) + dt;
-                const t = beam.userData.time / 0.8;
-                beam.scale.y = 3.0 * (1 - t * 0.5);
-                beamMat.opacity = 0.3 * (1 - t);
+                const t = (this.activeEffects[this.activeEffects.length - 1].time || 0) / 1.0;
+                beamMat.opacity = 0.5 * (1 - t);
+                coreMat.opacity = 0.8 * (1 - t);
+                beam.scale.x = 0.5 * scale * (1 + Math.sin(t * Math.PI) * 0.3);
+                beam.scale.z = 0.5 * scale * (1 + Math.sin(t * Math.PI) * 0.3);
             },
-            cleanup: () => { this.scene.remove(beam); beamMat.dispose(); }
+            cleanup: () => {
+                this.scene.remove(beam); beamMat.dispose();
+                this.scene.remove(core); coreMat.dispose();
+            }
         });
 
-        // === HEALING RUNE on ground ===
+        // === GOLDEN SPARKLES rising gently ===
+        for (let i = 0; i < 15; i++) {
+            const mat = new THREE.MeshBasicMaterial({
+                color: 0xffdd44,
+                transparent: true,
+                opacity: 0.7,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const sparkle = new THREE.Mesh(this.unitSphere, mat);
+            sparkle.position.copy(pos);
+            sparkle.position.x += (Math.random() - 0.5) * 0.6 * scale;
+            sparkle.position.z += (Math.random() - 0.5) * 0.6 * scale;
+            sparkle.position.y += 0.1;
+            sparkle.scale.setScalar(0.04 * scale);
+            sparkle.renderOrder = 9999;
+            this.scene.add(sparkle);
+
+            this.activeEffects.push({
+                group: sparkle, life: 1.2, time: 0,
+                update: (dt) => {
+                    sparkle.userData.time = (sparkle.userData.time || 0) + dt;
+                    const t = sparkle.userData.time / 1.2;
+                    sparkle.position.y += 1.5 * dt * scale;
+                    sparkle.position.x += Math.sin(t * 5 + i) * 0.3 * dt;
+                    mat.opacity = 0.7 * (1 - t);
+                },
+                cleanup: () => { this.scene.remove(sparkle); mat.dispose(); }
+            });
+        }
+
+        // === GOLDEN RUNE on ground ===
         const runeMat = new THREE.MeshBasicMaterial({
             color: 0xffdd44,
             transparent: true,
@@ -276,214 +569,214 @@ class VFXRenderer {
         });
         const rune = new THREE.Mesh(this.unitTorus, runeMat);
         rune.position.copy(pos);
-        rune.position.y += 0.05;
+        rune.position.y += 0.04;
         rune.rotation.x = Math.PI / 2;
         rune.scale.setScalar(0.3 * scale);
         rune.renderOrder = 9999;
         this.scene.add(rune);
 
         this.activeEffects.push({
-            group: rune, life: 1.2, time: 0,
+            group: rune, life: 1.5, time: 0,
             update: (dt) => {
                 rune.userData.time = (rune.userData.time || 0) + dt;
-                const t = rune.userData.time / 1.2;
-                rune.scale.setScalar((0.3 + t * 0.8) * scale);
+                const t = rune.userData.time / 1.5;
+                rune.scale.setScalar((0.3 + t * 0.6) * scale);
                 runeMat.opacity = 0.6 * (1 - t);
             },
             cleanup: () => { this.scene.remove(rune); runeMat.dispose(); }
         });
+    }
 
-        // === SPARKLES rising ===
-        for (let i = 0; i < 12; i++) {
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const mat = new THREE.MeshBasicMaterial({
-                color: color,
+    frostSigilEffect(pos, options = {}) {
+        const scale = options.scale || 2.0; // Bigger scale
+
+        // === ICE SHARDS RAINING DOWN ===
+        for (let i = 0; i < 20; i++) {
+            const startX = pos.x + (Math.random() - 0.5) * 2.0 * scale;
+            const startZ = pos.z + (Math.random() - 0.5) * 2.0 * scale;
+            const startY = pos.y + 2.5 + Math.random() * 2.0;
+
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0xccffff,
+                emissive: 0x66aaff,
+                emissiveIntensity: 1.0,
+                roughness: 0.02,
+                metalness: 0.5,
+                transparent: true,
+                opacity: 0.95
+            });
+
+            // BIG sharp ice shard
+            const shard = new THREE.Mesh(this.unitCone, mat);
+            shard.position.set(startX, startY, startZ);
+            shard.rotation.x = Math.PI;
+            shard.scale.set(0.08 * scale, 0.5 * scale, 0.08 * scale); // BIGGER
+            shard.renderOrder = 9999;
+            this.scene.add(shard);
+
+            // Glow around each shard
+            const glowMat = new THREE.MeshBasicMaterial({
+                color: 0xaaddff,
+                transparent: true,
+                opacity: 0.5,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const glow = new THREE.Mesh(this.unitSphere, glowMat);
+            glow.position.copy(shard.position);
+            glow.scale.setScalar(0.15 * scale);
+            glow.renderOrder = 9999;
+            this.scene.add(glow);
+
+            const fallSpeed = 5 + Math.random() * 6;
+            const targetY = pos.y + 0.05;
+
+            this.activeEffects.push({
+                group: shard, life: 0.5, time: 0,
+                update: (dt) => {
+                    shard.userData.time = (shard.userData.time || 0) + dt;
+                    const t = shard.userData.time / 0.5;
+                    shard.position.y -= fallSpeed * dt * scale;
+                    shard.position.x += Math.sin(t * 25) * 0.02 * scale;
+                    shard.rotation.z += dt * 5;
+
+                    glow.position.copy(shard.position);
+                    glowMat.opacity = 0.5 * (1 - t);
+
+                    if (shard.position.y <= targetY) {
+                        shard.position.y = targetY;
+                        mat.opacity = Math.max(0, 1 - (t - 0.3) / 0.7);
+                        shard.scale.y *= 0.2;
+                        glow.visible = false;
+                    }
+                },
+                cleanup: () => {
+                    this.scene.remove(shard); mat.dispose();
+                    this.scene.remove(glow); glowMat.dispose();
+                }
+            });
+        }
+
+        // === ICE EXPLOSION BURST ===
+        setTimeout(() => {
+            // White flash
+            const flashMat = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const flash = new THREE.Mesh(this.unitSphere, flashMat);
+            flash.position.copy(pos);
+            flash.position.y += 0.2;
+            flash.scale.setScalar(0.3 * scale);
+            flash.renderOrder = 9999;
+            this.scene.add(flash);
+
+            this.activeEffects.push({
+                group: flash, life: 0.2, time: 0,
+                update: (dt) => {
+                    const t = (flash.userData.time || 0) / 0.2;
+                    flash.scale.setScalar((0.3 + t * 2.0) * scale);
+                    flashMat.opacity = 1 - t;
+                },
+                cleanup: () => { this.scene.remove(flash); flashMat.dispose(); }
+            });
+
+            // Ice fragments exploding outward
+            for (let i = 0; i < 15; i++) {
+                const mat = new THREE.MeshBasicMaterial({
+                    color: i % 2 === 0 ? 0xffffff : 0xaaddff,
+                    transparent: true,
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending,
+                    depthTest: false,
+                    depthWrite: false
+                });
+                const fragment = new THREE.Mesh(this.unitBox, mat);
+                fragment.position.copy(pos);
+                fragment.position.y += 0.2;
+                fragment.scale.set(0.06 * scale, 0.15 * scale, 0.06 * scale); // BIGGER fragments
+                fragment.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                fragment.renderOrder = 9999;
+                this.scene.add(fragment);
+
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 4;
+
+                this.activeEffects.push({
+                    group: fragment, life: 0.5, time: 0,
+                    update: (dt) => {
+                        fragment.userData.time = (fragment.userData.time || 0) + dt;
+                        const t = fragment.userData.time / 0.5;
+                        fragment.position.x += Math.cos(angle) * speed * dt * scale;
+                        fragment.position.y += speed * dt * scale;
+                        fragment.position.z += Math.sin(angle) * speed * dt * scale;
+                        fragment.rotation.x += dt * 12;
+                        fragment.rotation.y += dt * 10;
+                        mat.opacity = 1 - t;
+                    },
+                    cleanup: () => { this.scene.remove(fragment); mat.dispose(); }
+                });
+            }
+
+            // Frost ring expanding
+            const ringMat = new THREE.MeshBasicMaterial({
+                color: 0xccffff,
                 transparent: true,
                 opacity: 0.8,
                 blending: THREE.AdditiveBlending,
                 depthTest: false,
                 depthWrite: false
             });
-            const sparkle = new THREE.Mesh(this.unitSphere, mat);
-            sparkle.position.copy(pos);
-            sparkle.position.x += (Math.random() - 0.5) * 0.5 * scale;
-            sparkle.position.z += (Math.random() - 0.5) * 0.5 * scale;
-            sparkle.position.y += 0.2;
-            sparkle.scale.setScalar(0.06 * scale);
-            sparkle.renderOrder = 9999;
-            this.scene.add(sparkle);
-
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 0.5 + Math.random() * 1.5;
+            const ring = new THREE.Mesh(this.unitTorus, ringMat);
+            ring.position.copy(pos);
+            ring.position.y += 0.06;
+            ring.rotation.x = Math.PI / 2;
+            ring.scale.setScalar(0.2 * scale);
+            ring.renderOrder = 9999;
+            this.scene.add(ring);
 
             this.activeEffects.push({
-                group: sparkle, life: 1.0, time: 0,
+                group: ring, life: 0.6, time: 0,
                 update: (dt) => {
-                    sparkle.userData.time = (sparkle.userData.time || 0) + dt;
-                    const t = sparkle.userData.time / 1.0;
-                    sparkle.position.x += Math.cos(angle) * speed * dt * scale;
-                    sparkle.position.y += speed * dt * scale;
-                    sparkle.position.z += Math.sin(angle) * speed * dt * scale;
-                    mat.opacity = 0.8 * (1 - t);
+                    ring.userData.time = (ring.userData.time || 0) + dt;
+                    const t = ring.userData.time / 0.6;
+                    ring.scale.setScalar((0.2 + t * 3.5) * scale);
+                    ringMat.opacity = 1 - t;
                 },
-                cleanup: () => { this.scene.remove(sparkle); mat.dispose(); }
+                cleanup: () => { this.scene.remove(ring); ringMat.dispose(); }
             });
-        }
+        }, 250);
 
-        // === GENTLE GLOW ===
-        const glowMat = new THREE.MeshBasicMaterial({
-            color: 0xffdd44,
-            transparent: true,
-            opacity: 0.4,
-            blending: THREE.AdditiveBlending,
-            depthTest: false,
-            depthWrite: false
-        });
-        const glow = new THREE.Mesh(this.unitSphere, glowMat);
-        glow.position.copy(pos);
-        glow.position.y += 0.3;
-        glow.scale.setScalar(0.3 * scale);
-        glow.renderOrder = 9998;
-        this.scene.add(glow);
-
-        this.activeEffects.push({
-            group: glow, life: 1.5, time: 0,
-            update: (dt) => {
-                glow.userData.time = (glow.userData.time || 0) + dt;
-                const t = glow.userData.time / 1.5;
-                glow.scale.setScalar((0.3 + Math.sin(t * Math.PI) * 0.5) * scale);
-                glowMat.opacity = 0.4 * (1 - t);
-            },
-            cleanup: () => { this.scene.remove(glow); glowMat.dispose(); }
-        });
-    }
-
-    frostSigilEffect(pos, options = {}) {
-        const scale = options.scale || 1.5;
-        const colors = options.colors || [0xaaddff, 0x88ccff, 0xffffff];
-
-        // === ICE SIGIL on target (circle rune) ===
-        const sigilMat = new THREE.MeshBasicMaterial({
+        // === FROZEN GROUND ===
+        const groundMat = new THREE.MeshBasicMaterial({
             color: 0xaaddff,
             transparent: true,
-            opacity: 0.7,
-            blending: THREE.AdditiveBlending,
+            opacity: 0.5,
             depthTest: false,
             depthWrite: false
         });
-        const sigil = new THREE.Mesh(this.unitTorus, sigilMat);
-        sigil.position.copy(pos);
-        sigil.position.y += 0.05;
-        sigil.rotation.x = Math.PI / 2;
-        sigil.scale.setScalar(0.5 * scale);
-        sigil.renderOrder = 9999;
-        this.scene.add(sigil);
+        const ground = new THREE.Mesh(this.unitPlane, groundMat);
+        ground.position.copy(pos);
+        ground.position.y += 0.015;
+        ground.rotation.x = -Math.PI / 2;
+        ground.scale.setScalar(0.5 * scale);
+        ground.renderOrder = 1;
+        this.scene.add(ground);
 
         this.activeEffects.push({
-            group: sigil, life: 1.5, time: 0,
+            group: ground, life: 2.0, time: 0,
             update: (dt) => {
-                sigil.userData.time = (sigil.userData.time || 0) + dt;
-                const t = sigil.userData.time / 1.5;
-                sigil.scale.setScalar((0.5 + t * 1.0) * scale);
-                sigil.position.y += 0.1 * dt;
-                sigilMat.opacity = 0.7 * (1 - t);
+                ground.userData.time = (ground.userData.time || 0) + dt;
+                const t = ground.userData.time / 2.0;
+                ground.scale.setScalar((0.5 + t * 2.0) * scale);
+                groundMat.opacity = 0.5 * (1 - t);
             },
-            cleanup: () => { this.scene.remove(sigil); sigilMat.dispose(); }
-        });
-
-        // === INNER RUNE (smaller, brighter) ===
-        const innerMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending,
-            depthTest: false,
-            depthWrite: false
-        });
-        const inner = new THREE.Mesh(this.unitTorus, innerMat);
-        inner.position.copy(pos);
-        inner.position.y += 0.06;
-        inner.rotation.x = Math.PI / 2;
-        inner.scale.setScalar(0.2 * scale);
-        inner.renderOrder = 9999;
-        this.scene.add(inner);
-
-        this.activeEffects.push({
-            group: inner, life: 0.8, time: 0,
-            update: (dt) => {
-                inner.userData.time = (inner.userData.time || 0) + dt;
-                const t = inner.userData.time / 0.8;
-                inner.scale.setScalar((0.2 + t * 0.8) * scale);
-                innerMat.opacity = 0.9 * (1 - t);
-            },
-            cleanup: () => { this.scene.remove(inner); innerMat.dispose(); }
-        });
-
-        // === ICE CRYSTALS bursting up ===
-        for (let i = 0; i < 8; i++) {
-            const color = colors[Math.floor(Math.random() * colors.length)];
-            const mat = new THREE.MeshStandardMaterial({
-                color: color,
-                emissive: color,
-                emissiveIntensity: 0.6,
-                transparent: true,
-                opacity: 0.8,
-                roughness: 0.1,
-                depthTest: false,
-                depthWrite: false
-            });
-            const crystal = new THREE.Mesh(this.unitCone, mat);
-            crystal.position.copy(pos);
-            crystal.position.y += 0.1;
-            crystal.scale.set(0.04 * scale, 0.2 * scale, 0.04 * scale);
-            crystal.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-            crystal.renderOrder = 9999;
-            this.scene.add(crystal);
-
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1 + Math.random() * 2;
-
-            this.activeEffects.push({
-                group: crystal, life: 0.6, time: 0,
-                update: (dt) => {
-                    crystal.userData.time = (crystal.userData.time || 0) + dt;
-                    const t = crystal.userData.time / 0.6;
-                    crystal.position.x += Math.cos(angle) * speed * dt * scale;
-                    crystal.position.y += speed * 0.5 * dt * scale;
-                    crystal.position.z += Math.sin(angle) * speed * dt * scale;
-                    crystal.rotation.x += dt * 6;
-                    mat.opacity = 0.8 * (1 - t);
-                },
-                cleanup: () => { this.scene.remove(crystal); mat.dispose(); }
-            });
-        }
-
-        // === SLOW AURA RING (expanding outward) ===
-        const slowMat = new THREE.MeshBasicMaterial({
-            color: 0x88ccff,
-            transparent: true,
-            opacity: 0.4,
-            blending: THREE.AdditiveBlending,
-            depthTest: false,
-            depthWrite: false
-        });
-        const slowRing = new THREE.Mesh(this.unitTorus, slowMat);
-        slowRing.position.copy(pos);
-        slowRing.position.y += 0.05;
-        slowRing.rotation.x = Math.PI / 2;
-        slowRing.scale.setScalar(0.3 * scale);
-        slowRing.renderOrder = 9998;
-        this.scene.add(slowRing);
-
-        this.activeEffects.push({
-            group: slowRing, life: 2.0, time: 0,
-            update: (dt) => {
-                slowRing.userData.time = (slowRing.userData.time || 0) + dt;
-                const t = slowRing.userData.time / 2.0;
-                slowRing.scale.setScalar((0.3 + t * 2.5) * scale); // Expands to show slow radius
-                slowMat.opacity = 0.4 * (1 - t);
-            },
-            cleanup: () => { this.scene.remove(slowRing); slowMat.dispose(); }
+            cleanup: () => { this.scene.remove(ground); groundMat.dispose(); }
         });
     }
 

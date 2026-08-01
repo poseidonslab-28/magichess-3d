@@ -128,30 +128,35 @@ class CombatSystem {
     executeSingleTargetSkill(hero, target, heroPos, skill) {
         if (!target || !target.alive) return;
 
+        // If skill has a projectile type, shoot it
+        if (skill.vfx?.skill?.projectile && hero.range > 1) {
+            const dmg = target.takeDmg(hero.atk * (skill.multiplier || 1.8));
+
+            if (this.vfx) {
+                const from = heroPos.clone(); from.y += 1.0;
+                const to = this.getPos(target).clone(); to.y += 0.8;
+                this.vfx.createProjectile(from, to, skill.vfx.skill.projectile, 0x88ff44);
+
+                setTimeout(() => {
+                    if (target.alive) {
+                        const tp = to.clone(); tp.y += 2.0;
+                        this.vfx.createFloatingText(tp, dmg, 'crit');
+                    }
+                }, 250);
+            }
+            return;
+        }
+
+        // Default single target
         const dmg = target.takeDmg(hero.atk * (skill.multiplier || 1.8));
         this.applyEffect(target, skill.effect, skill.stunDuration);
 
-        // Apply slow to nearby enemies
-        if (skill.slowRadius && skill.slowAmount) {
-            const enemies = (this.teamA.includes(hero) ? this.teamB : this.teamA);
-            enemies.forEach(e => {
-                if (e !== target && e.alive && this.getGridDistance(target, e) <= skill.slowRadius) {
-                    e.spd *= (1 - skill.slowAmount); // Slow by percentage
-                    // Reset speed after duration
-                    setTimeout(() => { e.spd = e.data.stats.spd; }, skill.slowDuration || 2000);
-                }
-            });
-        }
-
         if (this.vfx) {
             const tPos = this.getPos(target).clone(); tPos.y += 0.8;
-            const vfxType = skill.vfx?.skill?.type || 'frostSigil';
-            this.vfx.createImpact(tPos, vfxType, {
-                colors: skill.vfx?.skill?.colors,
-                scale: skill.vfx?.skill?.scale || 1.5
-            });
+            const vfxType = skill.vfx?.skill?.type || 'slash';
+            this.vfx.createImpact(tPos, vfxType, { colors: skill.vfx?.skill?.colors, scale: skill.vfx?.skill?.scale || 1.5 });
             const tp = tPos.clone(); tp.y += 2.0;
-            this.vfx.createFloatingText(tp, dmg, skill.vfx?.skill?.textType || 'damage');
+            this.vfx.createFloatingText(tp, dmg, skill.vfx?.skill?.textType || 'crit');
         }
     }
 

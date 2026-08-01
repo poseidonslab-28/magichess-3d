@@ -49,9 +49,29 @@ const HERO_DATA = {
         }
     },
     a1: {
-        id: 'a1', name: 'Wind', cost: 1, traits: ['archer', 'elf'], emoji: '🏹', color: '#44aa44',
+        id: 'a1', name: 'Wind', cost: 1, traits: ['archer', 'elf'], color: '#44aa44',
         stats: { hp: 500, atk: 55, def: 20, spd: 0.8, range: 4 }, mana: { max: 60, start: 0 },
-        skill: { name: 'Power Shot', desc: '180% pierce damage', type: 'single', multiplier: 1.8, effect: 'pierce' }
+        skill: {
+            name: 'Wind Arrow',
+            type: 'single',
+            multiplier: 2.2,
+            effect: 'damage',
+            vfx: {
+                attack: {
+                    impact: 'arrow',
+                    projectile: 'arrow',
+                    color: 0x88ff44
+                },
+                skill: {
+                    type: 'windArrow',
+                    projectile: 'windArrow',
+                    impact: 'windArrow',
+                    colors: [0xffffff, 0x88ff44, 0x44cc22],
+                    scale: 1.8,
+                    textType: 'crit'
+                }
+            }
+        }
     },
     t1: {
         id: 't1', name: 'Iron', cost: 1, traits: ['tank', 'human'], emoji: '🛡️', color: '#aa8844',
