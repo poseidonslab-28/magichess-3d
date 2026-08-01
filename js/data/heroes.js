@@ -50,7 +50,7 @@ const HERO_DATA = {
     },
     a1: {
         id: 'a1', name: 'Wind', cost: 1, traits: ['archer', 'elf'], color: '#44aa44',
-        stats: { hp: 500, atk: 55, def: 20, spd: 0.8, range: 4 }, mana: { max: 60, start: 0 },
+        stats: { hp: 500, atk: 55, def: 20, spd: 0.8, range: 4 }, mana: { max: 60, start: 30 },
         skill: {
             name: 'Wind Arrow',
             type: 'single',

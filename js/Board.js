@@ -17,7 +17,7 @@ class Board {
         this.scene.background = new THREE.Color(0x0b0e14);
         this.scene.fog = new THREE.FogExp2(0x0b0e14, 0.048);
 
-        this.camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.5, 80);
+        this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 80);
         this.camera.position.set(0, 10, 9.0);
         this.camera.lookAt(0, -3, 0);
         // this.camera.position.set(0, 2, 9.0);

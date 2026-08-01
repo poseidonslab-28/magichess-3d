@@ -38,42 +38,97 @@ class VFXCore {
 
     createFloatingText(position, text, type = 'damage') {
         const canvas = document.createElement('canvas');
-        canvas.width = 1024; canvas.height = 512;
+        canvas.width = 512;
+        canvas.height = 256;
         const ctx = canvas.getContext('2d');
-        let fontColor = '#ffffff', strokeColor = '#880000', fontSize = 55, scale = 2.6, isCrit = false;
+
+        let fontColor = '#ffffff', strokeColor = '#000000', fontSize = 80, scale = 4.0;
+
         switch (type) {
-            case 'crit': fontColor = '#ffdd00'; fontSize = 65; scale = 3.0; isCrit = true; break;
-            case 'heal': fontColor = '#44ff77'; fontSize = 58; scale = 2.8; break;
+            case 'crit':
+                fontColor = '#ffdd00'; strokeColor = '#660000';
+                fontSize = 100; scale = 5.0; break;
+            case 'heal':
+                fontColor = '#44ff77'; strokeColor = '#003311';
+                fontSize = 75; scale = 3.5; break;
+            default:
+                fontColor = '#ffffff'; strokeColor = '#000000';
+                fontSize = 80; scale = 4.0; break;
         }
-        ctx.font = `bold ${fontSize}px Arial`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.strokeStyle = strokeColor; ctx.lineWidth = 20; ctx.strokeText(String(text), 512, 256);
-        ctx.fillStyle = fontColor; ctx.fillText(String(text), 512, 256);
-        const texture = new THREE.CanvasTexture(canvas); texture.minFilter = THREE.LinearFilter;
-        const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
+
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 16; ctx.strokeText(String(text), 256, 128);
+        ctx.lineWidth = 8; ctx.strokeText(String(text), 256, 128);
+        ctx.fillStyle = fontColor;
+        ctx.fillText(String(text), 256, 128);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+
+        const spriteMat = new THREE.SpriteMaterial({
+            map: texture, transparent: true, depthTest: false, depthWrite: false,
+        });
+
         const sprite = new THREE.Sprite(spriteMat);
-        sprite.position.copy(position); sprite.position.y += 0.3;
-        sprite.scale.set(scale, scale * 0.5, 1); sprite.renderOrder = 999; sprite.frustumCulled = false;
+        sprite.position.copy(position);
+        sprite.position.y += 0.5;
+        sprite.scale.set(scale, scale * 0.5, 1);
+        sprite.renderOrder = 999;
+        sprite.frustumCulled = false;
         this.scene.add(sprite);
-        const duration = isCrit ? 1.25 : 1.0;
+
         const startY = sprite.position.y;
+        const riseHeight = 1.2;
+        const riseDuration = 0.8;   // SLOWER rise
+        const pauseDuration = 1.3;  // LONGER pause
+        const fadeDuration = 1.0;   // SLOWER fade
+        const totalDuration = riseDuration + pauseDuration + fadeDuration;
+
         this.addEffect({
-            group: sprite, life: duration, time: 0,
+            group: sprite, life: totalDuration, time: 0,
             update: (dt) => {
                 const eff = this.activeEffects[this.activeEffects.length - 1];
-                eff.time += dt; const p = eff.time / duration;
-                sprite.position.y = startY + p * 2.0;
-                if (p > 0.5) spriteMat.opacity = 1 - (p - 0.5) / 0.5;
+                eff.time += dt;
+                const elapsed = eff.time;
+
+                if (elapsed < riseDuration) {
+                    const p = elapsed / riseDuration;
+                    sprite.position.y = startY + p * riseHeight;
+                } else if (elapsed < riseDuration + pauseDuration) {
+                    sprite.position.y = startY + riseHeight;
+                } else {
+                    const p = (elapsed - riseDuration - pauseDuration) / fadeDuration;
+                    sprite.position.y = startY + riseHeight + p * 0.2;
+                    spriteMat.opacity = 1 - p;
+                }
             },
-            cleanup: () => { this.scene.remove(sprite); texture.dispose(); spriteMat.dispose(); }
+            cleanup: () => {
+                this.scene.remove(sprite);
+                texture.dispose();
+                spriteMat.dispose();
+            }
         });
     }
 
     createProjectile(from, to, type, color = 0xffdd44) {
         const group = new THREE.Group();
-        if (type === 'arrow' || type === 'windArrow') this.makeArrow(group, type === 'windArrow' ? 0x88ff44 : color);
-        else if (type === 'fireball') this.makeFireball(group);
-        else if (type === 'iceShard') this.makeIceShard(group);
-        else this.makeMagicBolt(group, color);
+        
+        if (type === 'windArrow') {
+            this.makeWindArrow(group);  // Special wind arrow
+        } else if (type === 'arrow') {
+            this.makeArrow(group, color);
+        } else if (type === 'fireball') {
+            this.makeFireball(group);
+        } else if (type === 'iceShard') {
+            this.makeIceShard(group);
+        } else {
+            this.makeMagicBolt(group, color);
+        }
+        
+        group.position.copy(from);
+        this.scene.add(group);
         group.position.copy(from); this.scene.add(group);
         const startPos = from.clone(), endPos = to.clone();
         const distance = startPos.distanceTo(endPos);
@@ -95,18 +150,101 @@ class VFXCore {
         });
     }
 
-    // Common effects
     slashEffect(pos, options = {}) {
-        const scale = options.scale || 0.5;
-        const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false });
-        const slash = new THREE.Mesh(this.unitPlane, mat);
-        slash.position.copy(pos); slash.position.y += 0.4;
-        slash.scale.set(0.8 * scale, 2.5 * scale, 1); slash.rotation.z = (Math.random() - 0.5) * 0.6;
-        slash.renderOrder = 9999; this.scene.add(slash);
+        const scale = options.scale || 0.2;
+        const coreColor = options.color || 0xffffff;
+        const glowColor = options.glowColor || 0xffdd44;
+        const angle = options.angle !== undefined ? options.angle : (Math.random() - 0.5) * 0.8;
+
+        const group = new THREE.Group();
+        group.position.copy(pos);
+        group.position.y += 0.3;
+        group.rotation.z = angle;
+        group.renderOrder = 9999;
+
+        // 1. Thick white core slash
+        const coreMat = new THREE.MeshBasicMaterial({
+            color: coreColor,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const coreMesh = new THREE.Mesh(this.unitPlane, coreMat);
+        coreMesh.scale.set(0.4 * scale, 3.5 * scale, 1);
+        group.add(coreMesh);
+
+        // 2. Colored glow around it
+        const glowMat = new THREE.MeshBasicMaterial({
+            color: glowColor,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            depthWrite: false
+        });
+        const glowMesh = new THREE.Mesh(this.unitPlane, glowMat);
+        glowMesh.scale.set(1.0 * scale, 4.0 * scale, 1);
+        glowMesh.position.z -= 0.01;
+        group.add(glowMesh);
+
+        this.scene.add(group);
+
+        // 3. Sparks
+        const sparks = [];
+        for (let i = 0; i < 6; i++) {
+            const sparkMat = new THREE.MeshBasicMaterial({
+                color: i % 2 === 0 ? 0xffffff : glowColor,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending,
+                depthTest: false,
+                depthWrite: false
+            });
+            const spark = new THREE.Mesh(this.unitSphere, sparkMat);
+            spark.position.copy(pos);
+            spark.position.y += 0.6;
+            spark.scale.setScalar(0.08 * scale);
+            spark.renderOrder = 9999;
+            this.scene.add(spark);
+            const sparkAngle = angle + (Math.random() - 0.5) * 1.5;
+            const speed = (2.0 + Math.random() * 3.0) * scale;
+            sparks.push({ mesh: spark, mat: sparkMat, angle: sparkAngle, speed });
+        }
+
+        // SLOWER fade - 0.3 seconds instead of 0.16
         this.addEffect({
-            group: slash, life: 0.2, time: 0,
-            update: (dt) => { slash.userData.time = (slash.userData.time || 0) + dt; const t = slash.userData.time / 0.2; slash.scale.x = (0.8 + t) * scale; mat.opacity = 1 - t; },
-            cleanup: () => { this.scene.remove(slash); mat.dispose(); }
+            life: 0.3, time: 0,
+            update: (dt, elapsed, progress) => {
+                // Slower expand
+                const expand = 1.0 + progress * 1.5;
+                coreMesh.scale.x = (0.4 * expand) * scale;
+                glowMesh.scale.x = (1.0 * expand) * scale;
+
+                // Linear fade (slower than pow)
+                const fade = 1 - progress;
+                coreMat.opacity = fade;
+                glowMat.opacity = fade * 0.7;
+
+                sparks.forEach(s => {
+                    s.mesh.position.x += Math.cos(s.angle) * s.speed * dt;
+                    s.mesh.position.y += Math.sin(s.angle) * s.speed * dt;
+                    s.mesh.scale.setScalar((0.08 * scale) * fade);
+                    s.mat.opacity = fade;
+                });
+            },
+            cleanup: () => {
+                this.scene.remove(group);
+                coreMat.dispose();
+                glowMat.dispose();
+                sparks.forEach(s => {
+                    this.scene.remove(s.mesh);
+                    s.mat.dispose();
+                });
+            }
         });
     }
 

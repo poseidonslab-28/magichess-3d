@@ -76,29 +76,50 @@ class CombatSystem {
     }
 
     performAttack(attacker, defender) {
+        if (attacker.state === 'attacking') return; // Prevent overlapping attacks
+
         attacker.state = 'attacking';
         this.playAnim(attacker, 'attack');
+
         const isRanged = attacker.range > 1;
         const dmg = defender.takeDmg(attacker.atk);
         attacker.mana = Math.min(attacker.mana + 15, attacker.maxMana);
-        const vfxConfig = attacker.data.skill?.vfx?.attack || {};
+
+        const impactDelay = isRanged ? 5 : 3; // ADD THIS
+        const totalAnimDuration = 5; // ADD THIS
 
         setTimeout(() => {
             if (!attacker.alive || !defender.alive) return;
-            if (this.vfx) {
-                const to = this.getPos(defender).clone(); to.y += 1.0;
-                if (isRanged) {
-                    const from = this.getPos(attacker).clone(); from.y += 1.2;
-                    this.vfx.createProjectile(from, to, vfxConfig.projectile || 'iceShard', vfxConfig.color || 0x88ccff);
-                } else {
-                    this.vfx.createImpact(to, 'fireBoost', { scale: 0.8 });
-                }
-                const tp = to.clone(); tp.y += 2.0;
-                this.vfx.createFloatingText(tp, dmg, 'damage');
-            }
-        }, isRanged ? 250 : 150);
 
-        setTimeout(() => { if (attacker.state === 'attacking') { attacker.state = 'idle'; this.playAnim(attacker, 'idle'); } }, 550);
+            if (this.vfx) {
+                const to = this.getPos(defender).clone();
+
+                if (isRanged) {
+                    const from = this.getPos(attacker).clone();
+                    from.y += 1.0;
+                    to.y += 0.8;
+                    this.vfx.createProjectile(from, to, 'arrow', 0xffffff);
+
+                    setTimeout(() => {
+                        if (defender.alive && this.vfx) {
+                            const tp = to.clone();
+                            tp.y += 1.5;
+                            this.vfx.createFloatingText(tp, dmg, 'damage');
+                        }
+                    }, 200);
+                } else {
+                    to.y += 1.5;
+                    this.vfx.createFloatingText(to, dmg, 'damage');
+                }
+            }
+        }, impactDelay); // Damage happens after this delay
+
+        setTimeout(() => {
+            if (attacker.state === 'attacking') {
+                attacker.state = 'idle';
+                this.playAnim(attacker, 'idle');
+            }
+        }, totalAnimDuration); // Hero unlocked after this
     }
 
     castSkill(hero, target) {
