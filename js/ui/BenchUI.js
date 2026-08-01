@@ -9,7 +9,11 @@ class BenchUI {
         for (let i = 0; i < 8; i++) {
             const slot = document.createElement('div');
             slot.className = 'bench-slot';
-            slot.onclick = () => this.game.selectBenchHero(i);
+            slot.onclick = (e) => {
+                e.stopPropagation();
+                console.log('BENCH SLOT CLICKED:', i, 'has hero:', !!this.game.bench[i]);
+                this.game.selectBenchHero(i);
+            };
             bc.appendChild(slot);
         }
     }

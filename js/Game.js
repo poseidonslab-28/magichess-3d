@@ -27,6 +27,7 @@ class Game {
         this.synergyUI = new SynergyUI(this);
         this.vfx = new VFXRenderer(this.board3D.scene);
         this.combat.vfx = this.vfx;
+        this.codexUI = new CodexUI(this);
         this._initDragArcVFX();
 
         for (let r = 0; r < 8; r++) {
@@ -36,51 +37,46 @@ class Game {
             }
         }
 
-        // Add this in init():
-        window.addEventListener('mousemove', (e) => {
-            const canvas = this.board3D.renderer.domElement;
-            const rect = canvas.getBoundingClientRect();
-
-            // Check if mouse is over the canvas
-            if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                e.clientY >= rect.top && e.clientY <= rect.bottom) {
-
-                console.log('OVER CANVAS'); // Should spam when mouse is over the game
-
-                const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-                const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-                const rc = new THREE.Raycaster();
-                rc.setFromCamera(new THREE.Vector2(x, y), this.board3D.camera);
-
-                if (this.board3D.tileMeshes) {
-                    const hits = rc.intersectObjects(this.board3D.tileMeshes);
-                    if (hits.length > 0 && this.previewGhost) {
-                        const pt = hits[0].point;
-                        this.previewGhost.position.set(pt.x, pt.y + 0.4, pt.z);
-                        this.previewGhost.visible = true;
-                        if (this.dragArcLine) {
-                            this._updateDragArcVFX(new THREE.Vector3(0, 0.3, 4), pt);
-                        }
-                    }
-                }
-            }
-        });
-
-        // Click on board
+        // ============ CLICK - PLACE OR SELECT HERO ============
         this.board3D.renderer.domElement.addEventListener('click', (e) => {
             if (this.phase !== 'plan') return;
+
             const tile = this._getTileFromMouse(e);
             if (!tile || tile.row < 4 || tile.row > 7) return;
 
+            console.log('CLICK tile:', tile.row, tile.col, 'bench:', this.selectedBenchHero, 'board:', !!this.selectedBoardHero);
+
+            // CASE 1: Place from bench
             if (this.selectedBenchHero !== null) {
-                this.placeHero(tile.row, tile.col);
-            } else if (this.board[tile.row][tile.col].hero) {
-                this.returnHeroToBench(tile.row, tile.col);
+                if (!this.board[tile.row][tile.col].hero) {
+                    this.placeHero(tile.row, tile.col);
+                }
+                return;
+            }
+
+            // CASE 2: Move selected board hero
+            if (this.selectedBoardHero !== null) {
+                const srcR = this.selectedBoardHero.row;
+                const srcC = this.selectedBoardHero.col;
+                if (srcR !== tile.row || srcC !== tile.col) {
+                    if (!this.board[tile.row][tile.col].hero) {
+                        this.moveBoardHero(srcR, srcC, tile.row, tile.col);
+                    }
+                }
+                return;
+            }
+
+            // CASE 3: Select board hero
+            if (this.board[tile.row][tile.col].hero) {
+                this.selectedBoardHero = { row: tile.row, col: tile.col };
+                this.selectedBenchHero = null;
+                this._createGhostForBoardHero(tile.row, tile.col);
+                this.board3D.highlightPlayerSide(0x4488ff);
+                this.benchUI.render(this.bench);
             }
         });
 
-        // Right click
+        // ============ RIGHT CLICK - RETURN TO BENCH ============
         this.board3D.renderer.domElement.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             if (this.phase !== 'plan') return;
@@ -90,34 +86,170 @@ class Game {
             }
         });
 
+        // ============ MOUSEMOVE - GHOST + ARC + HIGHLIGHT ============
+        this.board3D.renderer.domElement.addEventListener('mousemove', (e) => {
+            if (this.phase !== 'plan') return;
+            if (this.selectedBenchHero === null && !this.selectedBoardHero) return;
+
+            const rect = this.board3D.renderer.domElement.getBoundingClientRect();
+            const mx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            const my = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            this.raycaster.setFromCamera(new THREE.Vector2(mx, my), this.board3D.camera);
+
+            const hits = this.raycaster.intersectObjects(this.board3D.tileMeshes);
+            if (hits.length > 0) {
+                const pt = hits[0].point;
+                const tile = hits[0].object;
+
+                if (tile.userData?.row !== undefined) {
+                    this.board3D.highlightTile(tile.userData.row, tile.userData.col);
+                }
+
+                if (this.previewGhost) {
+                    this.previewGhost.position.set(pt.x, pt.y + 0.4, pt.z);
+                    this.previewGhost.visible = true;
+                }
+
+                if (this.dragArcLine) {
+                    let startPos;
+                    if (this.selectedBenchHero !== null) {
+                        const totalSlots = 8;
+                        const slotSpacing = 1.0;
+                        const benchStartX = 0 - ((totalSlots - 1) * slotSpacing) / 2;
+                        const benchX = benchStartX + this.selectedBenchHero * slotSpacing;
+                        startPos = new THREE.Vector3(benchX, 0.2, 4.5);
+                    } else if (this.selectedBoardHero) {
+                        const hero = this.board[this.selectedBoardHero.row]?.[this.selectedBoardHero.col]?.hero;
+                        if (hero?.mesh) {
+                            startPos = hero.mesh.position.clone();
+                            startPos.y += 0.3;
+                        }
+                    }
+                    if (startPos) this._updateDragArcVFX(startPos, pt);
+                }
+            }
+        });
+
         this.refreshShop();
         this.updateUI();
         this.animate();
     }
 
+    _createGhostForBoardHero(row, col) {
+        this._removeGhostPreview();
+        const hero = this.board[row][col].hero;
+        if (!hero) return;
+
+        // HIDE the original model
+        if (hero.mesh) {
+            hero.mesh.visible = false;
+            this._hiddenBoardHero = hero; // Remember to show later
+        }
+
+        const heroData = hero.data;
+
+        try {
+            this.previewGhost = HeroModels.create({ data: heroData, star: hero.star || 1 });
+        } catch (e) {
+            const color = parseInt(heroData.color?.replace('#', '0x') || '0xff4444');
+            const geo = new THREE.SphereGeometry(0.35, 8, 8);
+            this.previewGhost = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false }));
+        }
+
+        if (!this.previewGhost) return;
+
+        this.previewGhost.traverse(child => {
+            if (child.material) {
+                child.material.transparent = true;
+                child.material.opacity = 0.4;
+                child.material.depthTest = false;
+                child.material.depthWrite = false;
+            }
+        });
+
+        this.previewGhost.renderOrder = 9999;
+        this.previewGhost.position.copy(hero.mesh.position);
+        this.previewGhost.position.y += 0.3;
+        this.previewGhost.visible = true;
+        this.board3D.scene.add(this.previewGhost);
+    }
+
+    swapBoardHeroes(row1, col1, row2, col2) {
+        const hero1 = this.board[row1][col1].hero;
+        const hero2 = this.board[row2][col2].hero;
+
+        this.board[row1][col1].hero = hero2;
+        this.board[row2][col2].hero = hero1;
+
+        hero1.row = row2; hero1.col = col2;
+        hero2.row = row1; hero2.col = col1;
+
+        if (hero1.mesh) {
+            hero1.mesh.position.x = (col2 - 3.5) * this.board3D.tileSize;
+            hero1.mesh.position.z = (row2 - 3.5) * this.board3D.tileSize;
+        }
+        if (hero2.mesh) {
+            hero2.mesh.position.x = (col1 - 3.5) * this.board3D.tileSize;
+            hero2.mesh.position.z = (row1 - 3.5) * this.board3D.tileSize;
+        }
+
+        this.selectedBoardHero = null;
+        this.board3D.clearSideHighlight();
+        this.updateUI();
+    }
+
+    moveBoardHero(srcRow, srcCol, destRow, destCol) {
+        if (this.board[destRow][destCol].hero) return;
+
+        const hero = this.board[srcRow][srcCol].hero;
+        this.board[srcRow][srcCol].hero = null;
+        this.board[destRow][destCol].hero = hero;
+        hero.row = destRow; hero.col = destCol;
+
+        if (hero.mesh) {
+            hero.mesh.position.x = (destCol - 3.5) * this.board3D.tileSize;
+            hero.mesh.position.z = (destRow - 3.5) * this.board3D.tileSize;
+        }
+        if (this._hiddenBoardHero?.mesh) {
+            this._hiddenBoardHero.mesh.visible = true;
+            this._hiddenBoardHero = null;
+        }
+        
+        this.clearSelection();
+
+        this.selectedBoardHero = null;
+        this.board3D.clearSideHighlight();
+        this.updateUI();
+    }
+
     selectBenchHero(index) {
-        if (this.phase !== 'plan') return;
-        if (index >= this.bench.length) return;
-        if (this.selectedBenchHero === index) { this.clearSelection(); return; }
+        console.log('selectBenchHero called with index:', index);
+        console.log('bench has:', this.bench.length, 'heroes');
+
+        if (this.phase !== 'plan') { console.log('Not plan phase'); return; }
+        if (index >= this.bench.length) { console.log('Index out of range'); return; }
+        if (this.selectedBenchHero === index) {
+            console.log('Same hero, deselecting');
+            this.clearSelection();
+            return;
+        }
+
+        console.log('Creating ghost and arc...');
 
         this.clearSelection();
         this.selectedBenchHero = index;
         this.benchUI.render(this.bench, index);
         this._createGhostPreview(index);
 
-        // Calculate bench slot position in 3D space
-        // Bench slots are arranged horizontally, centered at bottom of board
+        // HIGHLIGHT player side green, dim enemy
+        this.board3D.highlightPlayerSide();
+
         const totalSlots = 8;
         const slotSpacing = 1.0;
-        const benchCenterX = 0;
-        const benchStartX = benchCenterX - ((totalSlots - 1) * slotSpacing) / 2;
+        const benchStartX = 0 - ((totalSlots - 1) * slotSpacing) / 2;
         const benchX = benchStartX + index * slotSpacing;
-        const benchZ = 4.5; // Bench is at the bottom of the board
-        const benchY = 0.2;
-
-        const benchPos = new THREE.Vector3(benchX, benchY, benchZ);
+        const benchPos = new THREE.Vector3(benchX, 0.2, 4.5);
         const boardCenter = new THREE.Vector3(0, 0.3, 1.5);
-
         this._updateDragArcVFX(benchPos, boardCenter);
     }
 
@@ -131,6 +263,11 @@ class Game {
         this.board[row][col].hero = hero;
         hero.row = row; hero.col = col;
         this.board3D.placeHero(hero, row, col);
+        if (this._hiddenBoardHero?.mesh) {
+            this._hiddenBoardHero.mesh.visible = true;
+            this._hiddenBoardHero = null;
+        }
+        
         this.clearSelection();
         this.benchUI.render(this.bench);
         this.updateUI();
@@ -149,9 +286,18 @@ class Game {
     }
 
     clearSelection() {
+        // Show hidden board hero if any
+        if (this._hiddenBoardHero && this._hiddenBoardHero.mesh) {
+            this._hiddenBoardHero.mesh.visible = true;
+            this._hiddenBoardHero = null;
+        }
+
         this.selectedBenchHero = null;
+        this.selectedBoardHero = null;
         this._removeGhostPreview();
         if (this.dragArcLine) this.dragArcLine.visible = false;
+        this.board3D?.clearSideHighlight();
+        this.board3D?.clearHighlight();
         this.benchUI.render(this.bench);
     }
 
@@ -303,5 +449,21 @@ class Game {
         if (this.board3D) this.board3D.render();
         if (this.combat?.active) { this.combat.update(16, 16); this.board3D.updateHeroPositions(this.heroes, this.enemies); }
         if (this.vfx) this.vfx.update(0.016);
+    }
+
+    placeHero(row, col) {
+        if (this.selectedBenchHero === null || this.board[row][col].hero) return;
+
+        let count = 0;
+        for (let r = 4; r < 8; r++) for (let c = 0; c < 8; c++) if (this.board[r][c].hero) count++;
+        if (count >= Math.min(this.economy.level, 10)) return;
+
+        const hero = this.bench.splice(this.selectedBenchHero, 1)[0];
+        this.board[row][col].hero = hero;
+        hero.row = row; hero.col = col;
+        this.board3D.placeHero(hero, row, col);
+        this.clearSelection();
+        this.benchUI.render(this.bench);
+        this.updateUI();
     }
 }

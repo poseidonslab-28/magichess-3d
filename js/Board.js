@@ -8,21 +8,21 @@ class Board {
         this.tileSize = 1.3;
         this.init();
     }
-    
+
     init() {
         this.clock = new THREE.Clock(); // Add clock for delta time calculation
         const container = document.getElementById('game-container');
-        
+
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x0b0e14);
         this.scene.fog = new THREE.FogExp2(0x0b0e14, 0.048);
-        
+
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 80);
         this.camera.position.set(0, 10, 9.0);
         this.camera.lookAt(0, -3, 0);
         // this.camera.position.set(0, 2, 9.0);
         // this.camera.lookAt(0, -2, 0);
-        
+
         this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -31,7 +31,7 @@ class Board {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2; // Brighter!
         container.appendChild(this.renderer.domElement);
-        
+
         // Lighting (only once!)
         const keyLight = new THREE.DirectionalLight(0xc8d8e8, 5); // Brighter moonlight
         keyLight.position.set(8, 16, -6);
@@ -39,17 +39,17 @@ class Board {
         keyLight.shadow.mapSize.width = 2048;
         keyLight.shadow.mapSize.height = 2048;
         this.scene.add(keyLight);
-        
+
         const ambient = new THREE.AmbientLight(0x708090, 0.9);
         this.scene.add(ambient);
         const hemi = new THREE.HemisphereLight(0x8090a0, 0x3a3a3a, 0.7);
         this.scene.add(hemi);
-        
+
         this.createGround();
         this.createBoard();
         this.createEnvironment();
         this.createParticles();
-        
+
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
@@ -61,8 +61,8 @@ class Board {
     createGround() {
         // Dark, damp mud / wet earth terrain
         const groundGeo = new THREE.PlaneGeometry(45, 45, 24, 24);
-        const groundMat = new THREE.MeshStandardMaterial({ 
-            color: 0x16181b, 
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0x16181b,
             roughness: 0.95,
             metalness: 0.02
         });
@@ -71,11 +71,11 @@ class Board {
         ground.position.y = -0.55;
         ground.receiveShadow = true;
         this.scene.add(ground);
-        
+
         // Massive, weathered stone platform
         const platformGeo = new THREE.BoxGeometry(12.2, 0.35, 12.2);
-        const platformMat = new THREE.MeshStandardMaterial({ 
-            color: 0x1d2126, 
+        const platformMat = new THREE.MeshStandardMaterial({
+            color: 0x1d2126,
             roughness: 0.85,
             metalness: 0.05
         });
@@ -89,11 +89,11 @@ class Board {
     createBoard() {
         this.boardGroup = new THREE.Group();
         const ts = this.tileSize;
-        
+
         // Outer Heavy Weathered Iron & Timber Border
         const frameGeo = new THREE.BoxGeometry(ts * 8 + 0.45, 0.18, ts * 8 + 0.45);
-        const frameMat = new THREE.MeshStandardMaterial({ 
-            color: 0x121110, 
+        const frameMat = new THREE.MeshStandardMaterial({
+            color: 0x121110,
             roughness: 0.7,
             metalness: 0.4
         });
@@ -102,7 +102,7 @@ class Board {
         frame.receiveShadow = true;
         frame.castShadow = true;
         this.boardGroup.add(frame);
-        
+
         // Dark Mortar/Grout Base Bed
         const groutBaseGeo = new THREE.BoxGeometry(ts * 8, 0.04, ts * 8);
         const groutBaseMat = new THREE.MeshStandardMaterial({ color: 0x090a0c, roughness: 1.0 });
@@ -117,20 +117,20 @@ class Board {
                 const tileGeo = new THREE.BoxGeometry(ts * 0.94, 0.08, ts * 0.94);
                 const noise = (Math.random() - 0.5) * 0.03;
                 let baseHex = isDark ? 0x22262c : 0x383e47;
-                
-                const tileMat = new THREE.MeshStandardMaterial({ 
+
+                const tileMat = new THREE.MeshStandardMaterial({
                     color: new THREE.Color(baseHex).addScalar(noise),
                     roughness: 0.65 + Math.random() * 0.2,
                     metalness: 0.05
                 });
-                
+
                 const tile = new THREE.Mesh(tileGeo, tileMat);
                 tile.position.x = (c - 3.5) * ts;
                 tile.position.z = (r - 3.5) * ts;
                 tile.position.y = 0.04;
                 tile.receiveShadow = true;
                 tile.castShadow = true;
-                
+
                 // ADD USERDATA FOR RAYCASTING
                 tile.userData = { row: r, col: c, isTile: true };
 
@@ -138,11 +138,11 @@ class Board {
                 this.tileMeshes.push(tile); // ADD TO TILEMESHES ARRAY
             }
         }
-        
+
         // Subtle Tarnished Metallic Divider Line
         const lineGeo = new THREE.BoxGeometry(ts * 8.05, 0.02, 0.08);
-        const lineMat = new THREE.MeshStandardMaterial({ 
-            color: 0x332c1e, 
+        const lineMat = new THREE.MeshStandardMaterial({
+            color: 0x332c1e,
             roughness: 0.5,
             metalness: 0.6
         });
@@ -150,7 +150,7 @@ class Board {
         line.position.z = 0;
         line.position.y = 0.081;
         this.boardGroup.add(line);
-        
+
         // Weathered Iron Corner Posts
         const corners = [[-4, -4], [4, -4], [-4, 4], [4, 4]];
         corners.forEach(([cx, cz]) => {
@@ -161,7 +161,7 @@ class Board {
             pillar.castShadow = true;
             this.boardGroup.add(pillar);
         });
-        
+
         this.scene.add(this.boardGroup);
     }
 
@@ -171,7 +171,7 @@ class Board {
             [-7.5, -5.8], [7.2, -6.0], [-7.2, 6.2], [7.5, 6.0],
             [-8.5, 0.2], [8.5, -0.4]
         ];
-        
+
         treePositions.forEach(([tx, tz]) => {
             const tree = this.makeDeadTree();
             tree.position.set(tx, -0.52, tz);
@@ -224,15 +224,15 @@ class Board {
         const count = 35;
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
-        
+
         for (let i = 0; i < count; i++) {
             positions[i * 3] = (Math.random() - 0.5) * 16;
             positions[i * 3 + 1] = Math.random() * 3.0 + 0.2;
             positions[i * 3 + 2] = (Math.random() - 0.5) * 16;
         }
-        
+
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        
+
         const mat = new THREE.PointsMaterial({
             color: 0x7c8c9e,
             size: 0.04,
@@ -241,56 +241,56 @@ class Board {
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
-        
+
         this.dust = new THREE.Points(geo, mat);
         this.dust.userData = { positions, count };
         this.scene.add(this.dust);
     }
-        
+
     placeHero(hero, row, col, isEnemy = false) {
         const mesh = HeroFactory.createMesh(hero, isEnemy);
         const ts = this.tileSize;
         mesh.position.x = (col - 3.5) * ts;
         mesh.position.z = (row - 3.5) * ts;
         mesh.position.y = 0.08;
-        
+
         // Face direction
         if (!isEnemy) {
             mesh.rotation.y = Math.PI;
         } else {
             mesh.rotation.y = 0;
         }
-        
+
         // ADD to existing userData, don't REPLACE it
         mesh.userData.hero = hero;
         mesh.userData.row = row;
         mesh.userData.col = col;
         // animator, healthBar, updateAnimation are already set by HeroFactory
-        
+
         this.scene.add(mesh);
-        
+
         if (isEnemy) {
             this.enemyMeshes.push(mesh);
         } else {
             this.heroMeshes.push(mesh);
         }
-        
+
         hero.mesh = mesh;
         return mesh;
     }
-    
+
     clearHeroes() {
         this.heroMeshes.forEach(m => this.scene.remove(m));
         this.enemyMeshes.forEach(m => this.scene.remove(m));
         this.heroMeshes = [];
         this.enemyMeshes = [];
     }
-    
+
     clearEnemies() {
         this.enemyMeshes.forEach(m => this.scene.remove(m));
         this.enemyMeshes = [];
     }
-    
+
     removeHero(row, col) {
         for (let i = this.heroMeshes.length - 1; i >= 0; i--) {
             const m = this.heroMeshes[i];
@@ -301,7 +301,7 @@ class Board {
             }
         }
     }
-    
+
     removeHeroMesh(mesh) {
         const idx = this.heroMeshes.indexOf(mesh);
         if (idx >= 0) {
@@ -309,10 +309,10 @@ class Board {
             this.heroMeshes.splice(idx, 1);
         }
     }
-    
+
     updateHeroPositions(heroes, enemies) {
         const dt = Math.min(this.clock.getDelta(), 0.1);
-        
+
         const updateMeshUnit = (mesh, unit) => {
             if (!unit) return;
 
@@ -372,7 +372,7 @@ class Board {
             this.dust.geometry.attributes.position.needsUpdate = true;
         }
     }
-    
+
     highlightTile(row, col) {
         this.clearHighlight();
         const geo = new THREE.BoxGeometry(this.tileSize * 0.94, 0.01, this.tileSize * 0.94);
@@ -384,23 +384,23 @@ class Board {
         this.highlightMesh.position.y = 0.085;
         this.scene.add(this.highlightMesh);
     }
-    
+
     clearHighlight() {
         if (this.highlightMesh) {
             this.scene.remove(this.highlightMesh);
             this.highlightMesh = null;
         }
     }
-    
+
     render() {
         const dt = Math.min(this.clock.getDelta(), 0.1);
-        
+
         [...this.heroMeshes, ...this.enemyMeshes].forEach(mesh => {
             if (mesh?.userData?.animator) {
                 mesh.userData.animator.update(dt);
             }
         });
-        
+
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -414,5 +414,50 @@ class Board {
                 return;
             }
         }
+    }
+
+
+    // In Board.js, add these methods:
+
+    highlightPlayerSide() {
+        this.clearSideHighlight();
+        this.playerHighlight = [];
+        for (let r = 4; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const geo = new THREE.BoxGeometry(this.tileSize * 0.94, 0.01, this.tileSize * 0.94);
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0x00ff00,
+                    transparent: true,
+                    opacity: 0.2,
+                    depthTest: false
+                });
+                const mesh = new THREE.Mesh(geo, mat);
+                mesh.position.x = (c - 3.5) * this.tileSize;
+                mesh.position.z = (r - 3.5) * this.tileSize;
+                mesh.position.y = 0.085;
+                this.scene.add(mesh);
+                this.playerHighlight.push(mesh);
+            }
+        }
+
+        // Dim enemy side
+        this.dimEnemySide(true);
+    }
+
+    dimEnemySide(dim = true) {
+        this.tileMeshes.forEach(tile => {
+            if (tile.userData && tile.userData.row < 4) {
+                tile.material.opacity = dim ? 0.4 : 1;
+                tile.material.transparent = dim;
+            }
+        });
+    }
+
+    clearSideHighlight() {
+        if (this.playerHighlight) {
+            this.playerHighlight.forEach(m => this.scene.remove(m));
+            this.playerHighlight = [];
+        }
+        this.dimEnemySide(false);
     }
 }
