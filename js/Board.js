@@ -56,54 +56,6 @@ class Board {
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-
-        this.renderer.domElement.addEventListener('click', (event) => {
-            if (!this.game || this.game.phase !== 'plan') return;
-            
-            const rect = this.renderer.domElement.getBoundingClientRect();
-            const mouse = new THREE.Vector2(
-                ((event.clientX - rect.left) / rect.width) * 2 - 1,
-                -((event.clientY - rect.top) / rect.height) * 2 + 1
-            );
-            
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, this.camera);
-            const hits = raycaster.intersectObjects(this.boardGroup.children);
-            
-            if (hits.length > 0) {
-                const pos = hits[0].object.position;
-                const col = Math.round(pos.x / 1.3 + 3.5);
-                const row = Math.round(pos.z / 1.3 + 3.5);
-                if (row >= 4 && row <= 7 && col >= 0 && col <= 7) {
-                    this.game.clickBoard(row, col);
-                }
-            }
-        });
-
-        // Right click
-        this.renderer.domElement.addEventListener('contextmenu', (event) => {
-            event.preventDefault();
-            if (!this.game || this.game.phase !== 'plan') return;
-            
-            const rect = this.renderer.domElement.getBoundingClientRect();
-            const mouse = new THREE.Vector2(
-                ((event.clientX - rect.left) / rect.width) * 2 - 1,
-                -((event.clientY - rect.top) / rect.height) * 2 + 1
-            );
-            
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, this.camera);
-            const hits = raycaster.intersectObjects(this.boardGroup.children);
-            
-            if (hits.length > 0) {
-                const pos = hits[0].object.position;
-                const col = Math.round(pos.x / 1.3 + 3.5);
-                const row = Math.round(pos.z / 1.3 + 3.5);
-                if (row >= 4 && row <= 7 && col >= 0 && col <= 7 && this.game.board[row][col].hero) {
-                    this.game.rightClickBoard(row, col); // Same as left click - returns to bench
-                }
-            }
-        });
     }
 
     createGround() {

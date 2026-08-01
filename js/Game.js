@@ -12,14 +12,8 @@ class Game {
         this.economy = new EconomySystem();
         this.pool = new HeroPool();
         this.combat = new CombatSystem(this);
-
-        // State tracking for selection and dragging
         this.selectedBenchHero = null;
-        this.selectedBoardHero = null;
-        this.dragState = null; // { hero, srcType: 'bench'|'board', srcRow, srcCol, startPos }
-
-        // Animation and VFX queues
-        this.arcAnimations = [];
+        this.previewGhost = null;
         this.dragArcLine = null;
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
@@ -33,11 +27,8 @@ class Game {
         this.synergyUI = new SynergyUI(this);
         this.vfx = new VFXRenderer(this.board3D.scene);
         this.combat.vfx = this.vfx;
-
-        // Create the 3D line geometry for the dynamic drag arc VFX
         this._initDragArcVFX();
 
-        // Initialize grid state
         for (let r = 0; r < 8; r++) {
             this.board[r] = [];
             for (let c = 0; c < 8; c++) {
@@ -45,421 +36,235 @@ class Game {
             }
         }
 
-        // Attach canvas mouse input listeners
-        this._setupInputListeners();
+        // Add this in init():
+        window.addEventListener('mousemove', (e) => {
+            const canvas = this.board3D.renderer.domElement;
+            const rect = canvas.getBoundingClientRect();
+
+            // Check if mouse is over the canvas
+            if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                e.clientY >= rect.top && e.clientY <= rect.bottom) {
+
+                console.log('OVER CANVAS'); // Should spam when mouse is over the game
+
+                const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+                const rc = new THREE.Raycaster();
+                rc.setFromCamera(new THREE.Vector2(x, y), this.board3D.camera);
+
+                if (this.board3D.tileMeshes) {
+                    const hits = rc.intersectObjects(this.board3D.tileMeshes);
+                    if (hits.length > 0 && this.previewGhost) {
+                        const pt = hits[0].point;
+                        this.previewGhost.position.set(pt.x, pt.y + 0.4, pt.z);
+                        this.previewGhost.visible = true;
+                        if (this.dragArcLine) {
+                            this._updateDragArcVFX(new THREE.Vector3(0, 0.3, 4), pt);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Click on board
+        this.board3D.renderer.domElement.addEventListener('click', (e) => {
+            if (this.phase !== 'plan') return;
+            const tile = this._getTileFromMouse(e);
+            if (!tile || tile.row < 4 || tile.row > 7) return;
+
+            if (this.selectedBenchHero !== null) {
+                this.placeHero(tile.row, tile.col);
+            } else if (this.board[tile.row][tile.col].hero) {
+                this.returnHeroToBench(tile.row, tile.col);
+            }
+        });
+
+        // Right click
+        this.board3D.renderer.domElement.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            if (this.phase !== 'plan') return;
+            const tile = this._getTileFromMouse(e);
+            if (tile && this.board[tile.row][tile.col].hero) {
+                this.returnHeroToBench(tile.row, tile.col);
+            }
+        });
 
         this.refreshShop();
         this.updateUI();
         this.animate();
     }
 
-    // ============ INPUT LISTENERS (CLICK, DRAG, RIGHT-CLICK) ============
-    _setupInputListeners() {
-        const canvas = this.board3D.renderer.domElement;
-
-        // Prevent browser context menu
-        window.addEventListener('contextmenu', (e) => e.preventDefault());
-
-        canvas.addEventListener('mousedown', (e) => {
-            if (this.phase !== 'plan') return;
-            const tile = this._getTileFromMouse(e);
-
-            // RIGHT CLICK (button 2) -> Instant return to bench
-            if (e.button === 2) {
-                if (tile && this.board[tile.row][tile.col].hero) {
-                    this.rightClickBoard(tile.row, tile.col);
-                }
-                return;
-            }
-
-            // LEFT CLICK (button 0) -> Drag start or placement
-            if (e.button === 0) {
-                // If bench hero selected, click board to place
-                if (this.selectedBenchHero !== null) {
-                    if (tile) this.clickBoard(tile.row, tile.col);
-                    return;
-                }
-
-                // Drag start from Board
-                if (tile && this.board[tile.row][tile.col].hero) {
-                    const hero = this.board[tile.row][tile.col].hero;
-                    const startPos = hero.mesh ? hero.mesh.position.clone() : new THREE.Vector3();
-
-                    this.dragState = {
-                        hero,
-                        srcType: 'board',
-                        srcRow: tile.row,
-                        srcCol: tile.col,
-                        startPos
-                    };
-                }
-            }
-        });
-
-        canvas.addEventListener('mousemove', (e) => {
-            if (this.phase !== 'plan') return;
-
-            // Update 3D drag arc if holding a hero
-            if (this.dragState) {
-                const groundIntersection = this._getGroundPointFromMouse(e);
-                if (groundIntersection) {
-                    this._updateDragArcVFX(this.dragState.startPos, groundIntersection);
-                }
-            }
-        });
-
-        canvas.addEventListener('mouseup', (e) => {
-            if (this.phase !== 'plan') return;
-
-            // Release drag
-            if (e.button === 0 && this.dragState) {
-                const targetTile = this._getTileFromMouse(e);
-                this._hideDragArcVFX();
-
-                if (targetTile) {
-                    // Reposition or swap on destination tile
-                    this.clickBoard(targetTile.row, targetTile.col);
-                }
-
-                this.dragState = null;
-            }
-        });
-    }
-
-    // ============ BENCH ============
     selectBenchHero(index) {
         if (this.phase !== 'plan') return;
         if (index >= this.bench.length) return;
+        if (this.selectedBenchHero === index) { this.clearSelection(); return; }
 
-        this.selectedBoardHero = null;
+        this.clearSelection();
         this.selectedBenchHero = index;
         this.benchUI.render(this.bench, index);
+        this._createGhostPreview(index);
 
-        // Show arc from bench position
-        const benchStartPos = new THREE.Vector3(0, 0.15, 4.5);
-        const boardCenter = new THREE.Vector3(0, 0.3, 2);
-        this.dragState = {
-            hero: this.bench[index],
-            srcType: 'bench',
-            benchIndex: index,
-            startPos: benchStartPos
-        };
-        this._updateDragArcVFX(benchStartPos, boardCenter);
+        // Calculate bench slot position in 3D space
+        // Bench slots are arranged horizontally, centered at bottom of board
+        const totalSlots = 8;
+        const slotSpacing = 1.0;
+        const benchCenterX = 0;
+        const benchStartX = benchCenterX - ((totalSlots - 1) * slotSpacing) / 2;
+        const benchX = benchStartX + index * slotSpacing;
+        const benchZ = 4.5; // Bench is at the bottom of the board
+        const benchY = 0.2;
+
+        const benchPos = new THREE.Vector3(benchX, benchY, benchZ);
+        const boardCenter = new THREE.Vector3(0, 0.3, 1.5);
+
+        this._updateDragArcVFX(benchPos, boardCenter);
     }
 
-    // ============ BOARD INTERACTION ============
-    clickBoard(row, col) {
-        if (this.phase !== 'plan') return;
-        const targetCell = this.board[row][col];
+    placeHero(row, col) {
+        if (this.selectedBenchHero === null || this.board[row][col].hero) return;
+        let count = 0;
+        for (let r = 4; r < 8; r++) for (let c = 0; c < 8; c++) if (this.board[r][c].hero) count++;
+        if (count >= Math.min(this.economy.level, 10)) return;
 
-        // 1. PLACE FROM BENCH -> BOARD
-        if (this.selectedBenchHero !== null) {
-            if (targetCell.hero) {
-                this._hideDragArcVFX();
-                return;
-            }
-
-            let count = 0;
-            for (let r = 4; r < 8; r++) {
-                for (let c = 0; c < 8; c++) {
-                    if (this.board[r][c].hero) count++;
-                }
-            }
-            if (count >= Math.min(this.economy.level, 10)) {
-                this._hideDragArcVFX();
-                return;
-            }
-
-            const benchIndex = this.selectedBenchHero;
-            const hero = this.bench.splice(benchIndex, 1)[0];
-
-            targetCell.hero = hero;
-            hero.row = row;
-            hero.col = col;
-
-            this._placeHeroWithArc(hero, row, col);
-
-            this.selectedBenchHero = null;
-            this.benchUI.render(this.bench);
-            this.updateUI();
-            this._hideDragArcVFX();
-            return;
-        }
-
-        // 2. REPOSITION OR SWAP BOARD HERO
-        if (this.selectedBoardHero !== null) {
-            const { row: srcR, col: srcC } = this.selectedBoardHero;
-
-            if (srcR === row && srcC === col) {
-                this.selectedBoardHero = null;
-                this.updateUI();
-                this._hideDragArcVFX();
-                return;
-            }
-
-            const srcHero = this.board[srcR][srcC].hero;
-            const destHero = targetCell.hero;
-
-            if (srcHero) {
-                if (!destHero) {
-                    // Move to empty tile
-                    this.board[srcR][srcC].hero = null;
-                    targetCell.hero = srcHero;
-                    srcHero.row = row;
-                    srcHero.col = col;
-
-                    this._placeHeroWithArc(srcHero, row, col);
-                } else {
-                    // Swap positions
-                    this._swapHeroesWithArc(srcHero, srcR, srcC, destHero, row, col);
-                }
-            }
-
-            this.selectedBoardHero = null;
-            this.updateUI();
-            this._hideDragArcVFX();
-            return;
-        }
-
-        // 3. SELECT BOARD HERO FOR MOVE
-        if (targetCell.hero) {
-            this.selectedBoardHero = { row, col };
-            this.selectedBenchHero = null;
-            this.benchUI.render(this.bench);
-        }
+        const hero = this.bench.splice(this.selectedBenchHero, 1)[0];
+        this.board[row][col].hero = hero;
+        hero.row = row; hero.col = col;
+        this.board3D.placeHero(hero, row, col);
+        this.clearSelection();
+        this.benchUI.render(this.bench);
+        this.updateUI();
     }
 
-    // ============ RIGHT CLICK -> RETURN TO BENCH ============
-    rightClickBoard(row, col) {
-        if (this.phase !== 'plan') return;
-        const targetCell = this.board[row][col];
-
-        if (targetCell.hero) {
-            if (this.bench.length >= 8) return; // Bench full
-
-            const hero = targetCell.hero;
-            targetCell.hero = null;
-            hero.row = -1;
-            hero.col = -1;
-
-            this.bench.push(hero);
-            this.board3D.removeHeroMeshByHero(hero);
-
-            // Clear selections and drag state
-            this.selectedBoardHero = null;
-            this.selectedBenchHero = null;
-            this.dragState = null;
-            this._hideDragArcVFX();
-
-            this.benchUI.render(this.bench);
-            this.updateUI();
-        }
+    returnHeroToBench(row, col) {
+        if (this.bench.length >= 8) return;
+        const hero = this.board[row][col].hero;
+        if (!hero) return;
+        this.board[row][col].hero = null;
+        hero.row = -1; hero.col = -1;
+        this.bench.push(hero);
+        this.board3D.removeHeroMeshByHero(hero);
+        this.benchUI.render(this.bench);
+        this.updateUI();
     }
 
-    // ============ DYNAMIC ARC LINE VFX ============
-    _initDragArcVFX() {
-        const points = [];
-        for (let i = 0; i <= 24; i++) points.push(new THREE.Vector3());
+    clearSelection() {
+        this.selectedBenchHero = null;
+        this._removeGhostPreview();
+        if (this.dragArcLine) this.dragArcLine.visible = false;
+        this.benchUI.render(this.bench);
+    }
 
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: 0x00e5ff,
-            linewidth: 1,
-            transparent: true,
-            opacity: 1.0, // FULL opacity
-            depthTest: false, // Always visible
-            depthWrite: false
+    // ============ GHOST & ARC ============
+    _createGhostPreview(benchIndex) {
+        this._removeGhostPreview();
+        const hero = this.bench[benchIndex];
+        if (!hero) return;
+        const heroData = hero.data || hero;
+
+        // Create the ACTUAL hero model
+        try {
+            this.previewGhost = HeroModels.create({ data: heroData, star: hero.star || 1 });
+        } catch (e) {
+            console.log('HeroModels.create failed, using fallback sphere');
+            const color = parseInt(heroData.color?.replace('#', '0x') || '0xff4444');
+            const geo = new THREE.SphereGeometry(0.35, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false });
+            this.previewGhost = new THREE.Mesh(geo, mat);
+        }
+
+        if (!this.previewGhost) return;
+
+        // Make ALL materials transparent
+        this.previewGhost.traverse(child => {
+            if (child.material) {
+                child.material.transparent = true;
+                child.material.opacity = 0.4;
+                child.material.depthTest = false;
+                child.material.depthWrite = false;
+            }
         });
 
-        this.dragArcLine = new THREE.Line(geometry, material);
+        this.previewGhost.renderOrder = 9999;
+        this.previewGhost.position.set(0, 2, 2);
+        this.previewGhost.visible = true;
+        this.board3D.scene.add(this.previewGhost);
+
+        console.log('GHOST HERO CREATED:', heroData.name);
+    }
+
+    _removeGhostPreview() {
+        if (this.previewGhost) { this.board3D.scene.remove(this.previewGhost); this.previewGhost = null; }
+    }
+
+    _initDragArcVFX() {
+        const tubeGeo = new THREE.TubeGeometry(
+            new THREE.QuadraticBezierCurve3(
+                new THREE.Vector3(0, 0.2, 4.5),  // Start near bench area
+                new THREE.Vector3(0, 3, 2),       // Arc peak
+                new THREE.Vector3(0, 0.3, 0)      // End at board center
+            ),
+            20, 0.08, 8, false
+        );
+        const tubeMat = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            transparent: true,
+            opacity: 0.9,
+            depthTest: false,
+            depthWrite: false
+        });
+        this.dragArcLine = new THREE.Mesh(tubeGeo, tubeMat);
         this.dragArcLine.visible = false;
-        this.dragArcLine.renderOrder = 999; // Render on top
-        this.dragArcLine.frustumCulled = false;
+        this.dragArcLine.renderOrder = 9999;
         this.board3D.scene.add(this.dragArcLine);
     }
 
+    // Update the arc to start from the bench slot position
     _updateDragArcVFX(startPos, endPos) {
         if (!this.dragArcLine) return;
-        this.dragArcLine.visible = true;
+        this.dragArcLine.geometry.dispose();
 
-        const distance = startPos.distanceTo(endPos);
         const midX = (startPos.x + endPos.x) / 2;
         const midZ = (startPos.z + endPos.z) / 2;
-        const midY = Math.max(startPos.y, endPos.y) + Math.min(distance * 0.5, 3.0); // HIGHER arc
+        const midY = Math.max(startPos.y, endPos.y) + 2.5;
 
         const curve = new THREE.QuadraticBezierCurve3(
             startPos,
             new THREE.Vector3(midX, midY, midZ),
             endPos
         );
-
-        const points = curve.getPoints(24);
-        this.dragArcLine.geometry.setFromPoints(points);
-        this.dragArcLine.geometry.attributes.position.needsUpdate = true;
+        this.dragArcLine.geometry = new THREE.TubeGeometry(curve, 20, 0.06, 8, false);
+        this.dragArcLine.visible = true;
     }
 
-    _hideDragArcVFX() {
-        if (this.dragArcLine) this.dragArcLine.visible = false;
-    }
-
-    // ============ PARABOLIC JUMP LANDING ANIMATIONS ============
-    _placeHeroWithArc(hero, targetRow, targetCol) {
-        let startPos = null;
-
-        if (hero.mesh) {
-            startPos = hero.mesh.position.clone();
-        }
-
-        this.board3D.placeHero(hero, targetRow, targetCol);
-
-        if (hero.mesh) {
-            const targetPos = hero.mesh.position.clone();
-
-            if (!startPos) {
-                startPos = targetPos.clone().add(new THREE.Vector3(0, -0.5, 3));
-            }
-
-            hero.mesh.position.copy(startPos);
-            this.startArcAnimation(hero.mesh, startPos, targetPos, 0.35);
-        }
-    }
-
-    _swapHeroesWithArc(heroA, rowA, colA, heroB, rowB, colB) {
-        const startPosA = heroA.mesh ? heroA.mesh.position.clone() : null;
-        const startPosB = heroB.mesh ? heroB.mesh.position.clone() : null;
-
-        this.board[rowA][colA].hero = heroB;
-        this.board[rowB][colB].hero = heroA;
-        heroA.row = rowB; heroA.col = colB;
-        heroB.row = rowA; heroB.col = colA;
-
-        this.board3D.placeHero(heroA, rowB, colB);
-        this.board3D.placeHero(heroB, rowA, colA);
-
-        if (heroA.mesh && startPosA) {
-            const targetPosA = heroA.mesh.position.clone();
-            heroA.mesh.position.copy(startPosA);
-            this.startArcAnimation(heroA.mesh, startPosA, targetPosA, 0.35);
-        }
-
-        if (heroB.mesh && startPosB) {
-            const targetPosB = heroB.mesh.position.clone();
-            heroB.mesh.position.copy(startPosB);
-            this.startArcAnimation(heroB.mesh, startPosB, targetPosB, 0.35);
-        }
-    }
-
-    startArcAnimation(mesh, startPos, endPos, duration = 0.35) {
-        this.arcAnimations.push({
-            mesh,
-            startPos: startPos.clone(),
-            endPos: endPos.clone(),
-            duration,
-            elapsed: 0
-        });
-    }
-
-    updateArcAnimations(dt) {
-        const arcHeight = 1.8;
-
-        for (let i = this.arcAnimations.length - 1; i >= 0; i--) {
-            const anim = this.arcAnimations[i];
-            anim.elapsed += dt;
-            const progress = Math.min(anim.elapsed / anim.duration, 1.0);
-
-            const x = THREE.MathUtils.lerp(anim.startPos.x, anim.endPos.x, progress);
-            const z = THREE.MathUtils.lerp(anim.startPos.z, anim.endPos.z, progress);
-            const baseY = THREE.MathUtils.lerp(anim.startPos.y, anim.endPos.y, progress);
-            const arcY = Math.sin(progress * Math.PI) * arcHeight;
-
-            anim.mesh.position.set(x, baseY + arcY, z);
-
-            if (progress >= 1.0) {
-                anim.mesh.position.copy(anim.endPos);
-                this.arcAnimations.splice(i, 1);
-            }
-        }
-    }
-
-    // ============ RAYCAST HELPERS ============
+    // ============ HELPERS ============
     _getTileFromMouse(event) {
-        if (!this.board3D || !this.board3D.camera) return null;
+        if (!this.board3D?.camera) return null;
         const rect = this.board3D.renderer.domElement.getBoundingClientRect();
         this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
         this.raycaster.setFromCamera(this.mouse, this.board3D.camera);
-
-        // Raycast against board tile meshes
         if (this.board3D.tileMeshes) {
-            const intersects = this.raycaster.intersectObjects(this.board3D.tileMeshes);
-            if (intersects.length > 0) {
-                const tileMesh = intersects[0].object;
-                if (tileMesh.userData && tileMesh.userData.row !== undefined) {
-                    return { row: tileMesh.userData.row, col: tileMesh.userData.col };
-                }
+            const hits = this.raycaster.intersectObjects(this.board3D.tileMeshes);
+            if (hits.length > 0 && hits[0].object.userData?.row !== undefined) {
+                return { row: hits[0].object.userData.row, col: hits[0].object.userData.col };
             }
         }
         return null;
     }
 
-    _getGroundPointFromMouse(event) {
-        if (!this.board3D || !this.board3D.camera) return null;
-        const rect = this.board3D.renderer.domElement.getBoundingClientRect();
-        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-        this.raycaster.setFromCamera(this.mouse, this.board3D.camera);
-        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-        const target = new THREE.Vector3();
-        return this.raycaster.ray.intersectPlane(plane, target);
-    }
-
     // ============ GAME LOGIC ============
-    refreshShop() {
-        this.shop = [];
-        for (let i = 0; i < 5; i++) {
-            const h = this.pool.getHero(this.economy.level);
-            if (h) this.shop.push(h);
-        }
-        if (this.shopUI) this.shopUI.render(this.shop);
-    }
-
-    buyHero(index) {
-        const h = this.shop[index];
-        if (!h || this.economy.gold < h.cost || this.bench.length >= 8) return false;
-        this.economy.gold -= h.cost;
-        this.bench.push(new HeroInstance(h, 1));
-        this.shop.splice(index, 1);
-        this.shopUI.render(this.shop);
-        this.benchUI.render(this.bench);
-        this.updateUI();
-        return true;
-    }
-
-    rerollShop() {
-        if (this.phase !== 'plan' || this.economy.gold < 2) return;
-        this.shop.forEach(h => { if (h?.id) this.pool.returnHero(h.id); });
-        this.economy.gold -= 2;
-        this.refreshShop();
-        this.updateUI();
-    }
+    refreshShop() { this.shop = []; for (let i = 0; i < 5; i++) { const h = this.pool.getHero(this.economy.level); if (h) this.shop.push(h); } if (this.shopUI) this.shopUI.render(this.shop); }
+    buyHero(index) { const h = this.shop[index]; if (!h || this.economy.gold < h.cost || this.bench.length >= 8) return false; this.economy.gold -= h.cost; this.bench.push(new HeroInstance(h, 1)); this.shop.splice(index, 1); this.shopUI.render(this.shop); this.benchUI.render(this.bench); this.updateUI(); return true; }
+    rerollShop() { if (this.phase !== 'plan' || this.economy.gold < 2) return; this.shop.forEach(h => { if (h?.id) this.pool.returnHero(h.id); }); this.economy.gold -= 2; this.refreshShop(); this.updateUI(); }
 
     startRound() {
         if (this.phase !== 'plan') return;
         this.heroes = [];
-        for (let r = 4; r < 8; r++)
-            for (let c = 0; c < 8; c++)
-                if (this.board[r][c].hero) {
-                    this.board[r][c].hero.reset();
-                    this.heroes.push(this.board[r][c].hero);
-                }
+        for (let r = 4; r < 8; r++) for (let c = 0; c < 8; c++) if (this.board[r][c].hero) { this.board[r][c].hero.reset(); this.heroes.push(this.board[r][c].hero); }
         if (this.heroes.length === 0) return;
-
-        this.phase = 'combat';
-        document.getElementById('btn-start').style.display = 'none';
-        this.enemies = [];
-        this.board3D.clearEnemies();
+        this.phase = 'combat'; document.getElementById('btn-start').style.display = 'none';
+        this.enemies = []; this.board3D.clearEnemies();
         const count = Math.min(2 + Math.floor(this.round / 2), 8);
         for (let i = 0; i < count; i++) {
             const avail = Object.values(HERO_DATA).filter(h => h.cost <= Math.min(this.economy.level, 5));
@@ -477,10 +282,8 @@ class Game {
     onDraw() { this.endRound(); }
 
     endRound() {
-        this.board3D.clearEnemies(); this.enemies = [];
-        this.heroes.forEach(h => h.reset());
-        this.economy.addGold(this.economy.calculateIncome());
-        this.economy.exp += 2; this.economy.checkLevelUp();
+        this.board3D.clearEnemies(); this.enemies = []; this.heroes.forEach(h => h.reset());
+        this.economy.addGold(this.economy.calculateIncome()); this.economy.exp += 2; this.economy.checkLevelUp();
         this.refreshShop(); this.updateUI();
         if (this.hp <= 0) { alert(`Game Over! Round ${this.round}`); return; }
         setTimeout(() => { this.round++; this.phase = 'plan'; document.getElementById('btn-start').style.display = 'block'; }, 2000);
@@ -491,20 +294,14 @@ class Game {
         document.getElementById('level-display').textContent = this.economy.level;
         document.getElementById('xp-display').textContent = `${this.economy.exp}/${this.economy.xpNeeded[this.economy.level - 1]}`;
         document.getElementById('health-display').textContent = this.hp;
-        const boardHeroes = [];
-        for (let r = 4; r < 8; r++) for (let c = 0; c < 8; c++) if (this.board[r][c].hero) boardHeroes.push(this.board[r][c].hero);
-        if (this.synergyUI) this.synergyUI.render(boardHeroes);
+        const bh = []; for (let r = 4; r < 8; r++) for (let c = 0; c < 8; c++) if (this.board[r][c].hero) bh.push(this.board[r][c].hero);
+        if (this.synergyUI) this.synergyUI.render(bh);
     }
 
     animate() {
         requestAnimationFrame(() => this.animate());
         if (this.board3D) this.board3D.render();
-        if (this.combat?.active) {
-            this.combat.update(16, 16);
-            this.board3D.updateHeroPositions(this.heroes, this.enemies);
-        }
+        if (this.combat?.active) { this.combat.update(16, 16); this.board3D.updateHeroPositions(this.heroes, this.enemies); }
         if (this.vfx) this.vfx.update(0.016);
-        this.updateArcAnimations(0.016);
     }
-}/ /   t e s t   p u s h  
- 
+}
